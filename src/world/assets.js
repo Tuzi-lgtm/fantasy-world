@@ -9,7 +9,7 @@ import { DECK } from './layout.js';
 export async function loadAssets(scene) {
   let manifest;
   try {
-    const res = await fetch('/models/manifest.json');
+    const res = await fetch(`${import.meta.env.BASE_URL}models/manifest.json`);
     if (!res.ok) return;
     manifest = await res.json();
   } catch { return; }
@@ -19,7 +19,7 @@ export async function loadAssets(scene) {
 
   await Promise.all(manifest.map(async (e) => {
     try {
-      const gltf = await loader.loadAsync(`/models/${e.file}`);
+      const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${e.file}`);
       const obj = gltf.scene;
       const [x, z] = e.position ?? [0, 0];
       const ground = walkHeight(x, z);   // -Infinity over the void

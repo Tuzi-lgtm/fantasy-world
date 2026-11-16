@@ -1,5 +1,7 @@
 # Fantasy World
 
+Live: https://tuzi-lgtm.github.io/fantasy-world/ (deployed by GitHub Actions on every push to `main`).
+
 Interactive 3D fantasy valley built with Three.js + Vite.
 
 ```bash
