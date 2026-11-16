@@ -1,18 +1,20 @@
 import * as THREE from 'three';
 import { Kit, hall, terrace, gateBase, wall, bridge, riverBanks, paifang, paving } from './architecture.js';
-import { G, COURT, APPROACH, WALL, GATE, RIVER, ARCH, TERRACE, STAIR, HALL, terraceTop, stairTopZ, stairLowZ } from './layout.js';
+import { G, COURT, APPROACH, WALL, GATE, RIVER, ARCH, TERRACE, STAIR, HALL, terraceTop, stairTopZ, stairLowZ, SIDE_HALLS, setColliderTop } from './layout.js';
 
 export function createPalace() {
   const kit = new Kit();
 
   // Main hall on the three-tier terrace
   terrace(kit, { ...TERRACE, G, stairW: STAIR.w, stairTopZ, stairLowZ });
-  hall(kit, { x: 0, y: terraceTop, z: HALL.cz, w: HALL.w, d: HALL.d, colH: HALL.colH, bays: HALL.bays, double: true });
+  const hh = hall(kit, { x: 0, y: terraceTop, z: HALL.cz, w: HALL.w, d: HALL.d, colH: HALL.colH, bays: HALL.bays, double: true });
+  setColliderTop('hall', terraceTop + hh);
+  console.info('main hall height above terrace:', hh.toFixed(1));
 
   // Fortress gate + gate hall + corner pavilions
   gateBase(kit, { ...GATE, G });
   const gy = G + GATE.h + 1.6;
-  hall(kit, { x: 0, y: gy, z: GATE.z, ...GATE.hall, double: true });
+  setColliderTop('gateHall', gy + hall(kit, { x: 0, y: gy, z: GATE.z, ...GATE.hall, double: true }));
   for (const s of [-1, 1]) hall(kit, { x: s * 92, y: gy, z: GATE.z, w: 22, d: 22, colH: 9, bays: 3, double: true, plaque: false });
 
   // Enclosure walls
@@ -23,7 +25,7 @@ export function createPalace() {
   wall(kit, -xw, GATE.z, -GATE.w / 2, GATE.z, o);
   wall(kit, GATE.w / 2, GATE.z, xw, GATE.z, o);
 
-  // Golden water river + five bridges
+  // Golden Water river + five bridges
   riverBanks(kit, { ...RIVER, x0: -COURT.x, x1: COURT.x, G });
   for (const b of RIVER.bridges) bridge(kit, { ...b, z: RIVER.z, len: RIVER.bridgeLen, rise: RIVER.rise, G, bed: RIVER.bed });
 
@@ -31,8 +33,7 @@ export function createPalace() {
   paifang(kit, { ...ARCH, G });
 
   // Side halls flanking the courtyard (scale + rhythm)
-  for (const s of [-1, 1]) for (const z of [-20, 110])
-    hall(kit, { x: s * 165, y: G, z, w: 64, d: 34, colH: 12, bays: 7, double: false, roof: 'green', plaque: false });
+  SIDE_HALLS.forEach((h, i) => setColliderTop('side' + i, G + hall(kit, { ...h, y: G, double: false, roof: 'green', plaque: false })));
 
   const group = kit.build();
   group.add(createPaving());

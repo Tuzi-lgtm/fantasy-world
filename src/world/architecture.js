@@ -207,11 +207,11 @@ export function hall(kit, o) {
   kit.box(w + bw * 0.5, bh * 0.65, d + bw * 0.5, x, yb + bh * 0.675, z, COL.tealDark);
   const yr = yb + bh;
 
-  const over = bw * 1.1;
+  const over = Math.min(bw * 1.1, colH * 0.45);
   const W = w / 2 + over, D = d / 2 + over;
   let top;
   if (double) {
-    const sk = hipRoof(kit, { W, D, H: D * 0.75, t1: 0.42, color: roof, x, y: yr, z, inner: [w / 2 + bw * 0.25, d / 2 + bw * 0.25] });
+    const sk = hipRoof(kit, { W, D, H: D * 0.55, t1: 0.42, color: roof, x, y: yr, z, inner: [w / 2 + bw * 0.25, d / 2 + bw * 0.25] });
     const ux = sk.hx + 0.2, uz = sk.hz + 0.2, uh = colH * 0.42;
     const yw = sk.topY;
     kit.box(ux * 2, uh + (sk.topY - yr), uz * 2, x, yr + (uh + sk.topY - yr) / 2, z, COL.red);
@@ -222,9 +222,9 @@ export function hall(kit, o) {
     }
     const y2 = yw + uh + uh * 0.35;
     const o2 = over * 0.9, W2 = ux + o2, D2 = uz + o2;
-    top = hipRoof(kit, { W: W2, D: D2, H: D2 * 0.95, color: roof, x, y: y2, z, inner: [ux, uz] }).topY;
+    top = hipRoof(kit, { W: W2, D: D2, H: D2 * 0.7, color: roof, x, y: y2, z, inner: [ux, uz] }).topY;
   } else {
-    top = hipRoof(kit, { W, D, H: D * 0.85, color: roof, x, y: yr, z, inner: [w / 2 + bw * 0.25, d / 2 + bw * 0.25] }).topY;
+    top = hipRoof(kit, { W, D, H: D * 0.7, color: roof, x, y: yr, z, inner: [w / 2 + bw * 0.25, d / 2 + bw * 0.25] }).topY;
   }
   return top - y;
 }

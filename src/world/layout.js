@@ -1,7 +1,7 @@
 // Single source of truth for the palace complex. Terrain flattening, scatter
 // exclusion, building placement and collision all read from here.
 // Axis runs along Z; the complex faces +Z (south), the player spawns at +Z.
-// Roughly the Hall of Supreme Harmony (~64 x 37 m, ~27 m tall) scaled ~2.5x.
+// Main hall: roughly the Hall of Supreme Harmony (~64 x 37 m, ~27 m tall) scaled ~2.5x.
 
 export const G = 3;                       // courtyard paving level (water is at 0)
 export const COURT = { x: 200, zMin: -340, zMax: 240 };   // inside the walls
@@ -25,7 +25,8 @@ export const ARCH = { z: 60, center: 22, side: 14, pillar: 4, h: 30 };
 
 export const TERRACE = { cx: 0, cz: -205, w: 280, d: 190, tiers: 3, tierH: 7, inset: 14 };
 export const STAIR = { w: 26, run: 3 };   // run per unit of rise
-export const HALL = { cz: -215, w: 160, d: 92, colH: 30, bays: 11 };
+export const HALL = { cz: -215, w: 160, d: 92, colH: 20, bays: 11 };   // height/width ~0.47, like the original
+export const SIDE_HALLS = [-1, 1].flatMap(s => [-20, 110].map(z => ({ x: s * 150, z, w: 64, d: 34, colH: 12, bays: 7 })));
 
 // ---------- derived ----------
 export const terraceTop = G + TERRACE.tiers * TERRACE.tierH;
@@ -69,7 +70,7 @@ box(GATE.w / 2, COURT.x + wt, GATE.z - 3, GATE.z + 3, wh);
   }
   box(x, GATE.w / 2, z0, z1, top);
   const hw = GATE.hall.w / 2 + 6, hd = GATE.hall.d / 2 + 6;
-  box(-hw, hw, GATE.z - hd, GATE.z + hd, top + 45, { bottom: top });
+  box(-hw, hw, GATE.z - hd, GATE.z + hd, top + 45, { bottom: top, id: 'gateHall' });
 }
 
 // river: blocked between bridges (bank balustrades), bridges are arched decks
@@ -77,8 +78,8 @@ box(GATE.w / 2, COURT.x + wt, GATE.z - 3, GATE.z + 3, wh);
   const z0 = RIVER.z - RIVER.w / 2 - 2, z1 = RIVER.z + RIVER.w / 2 + 2;
   const bs = [...RIVER.bridges].sort((a, b) => a.x - b.x);
   let x = -COURT.x;
-  for (const b of bs) { box(x, b.x - b.w / 2, z0, z1, G + 4); x = b.x + b.w / 2; }
-  box(x, COURT.x, z0, z1, G + 4);
+  for (const b of bs) { box(x, b.x - b.w / 2, z0, z1, G + 12); x = b.x + b.w / 2; }
+  box(x, COURT.x, z0, z1, G + 12);
   const L = RIVER.bridgeLen;
   for (const b of bs) box(b.x - b.w / 2, b.x + b.w / 2, RIVER.z - L / 2, RIVER.z + L / 2, 0,
     { priority: true, arch: { z0: RIVER.z - L / 2, len: L, rise: RIVER.rise } });
@@ -100,4 +101,7 @@ for (let k = 0; k < TERRACE.tiers; k++) {
   box(-hx, hx, TERRACE.cz - hz, TERRACE.cz + hz, G + (k + 1) * TERRACE.tierH);
 }
 box(-STAIR.w / 2, STAIR.w / 2, stairTopZ, stairLowZ, 0, { ramp: { zHigh: stairTopZ, zLow: stairLowZ, yHigh: terraceTop, yLow: G } });
-box(-HALL.w / 2 - 12, HALL.w / 2 + 12, HALL.cz - HALL.d / 2 - 12, HALL.cz + HALL.d / 2 + 12, terraceTop + 80);
+box(-HALL.w / 2 - 12, HALL.w / 2 + 12, HALL.cz - HALL.d / 2 - 12, HALL.cz + HALL.d / 2 + 12, terraceTop + 80, { id: 'hall' });
+SIDE_HALLS.forEach((h, i) => box(h.x - h.w / 2 - 5, h.x + h.w / 2 + 5, h.z - h.d / 2 - 5, h.z + h.d / 2 + 5, G + 40, { id: 'side' + i }));
+// Real roof heights are filled in by palace.js once the halls are built.
+export const setColliderTop = (id, top) => { const c = colliders.find(c => c.id === id); if (c) c.top = top; };
