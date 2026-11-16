@@ -15,19 +15,19 @@ const shade = (c, t) => (t < 0.5 ? c.copy(crease).lerp(mid, t * 2) : c.copy(mid)
 
 // Billow height field: |noise| gives rounded tops and sharp creases.
 function cloudHeight(x, z) {
-  const n1 = Math.abs(noise.noise(x * 0.0035, z * 0.0035, 3.1));
-  const n2 = Math.abs(noise.noise(x * 0.011, z * 0.011, 7.7));
-  const n3 = Math.abs(noise.noise(x * 0.028, z * 0.028, 1.3));
-  const big = noise.noise(x * 0.0009, z * 0.0009, 5.5);
-  let h = 45 * Math.sqrt(n1) + 28 * Math.sqrt(n2) + 12 * Math.sqrt(n3) + 30 * big - 52;
+  const n1 = Math.abs(noise.noise(x * 0.0024, z * 0.0024, 3.1));
+  const n2 = Math.abs(noise.noise(x * 0.0075, z * 0.0075, 7.7));
+  const n3 = Math.abs(noise.noise(x * 0.02, z * 0.02, 1.3));
+  const big = noise.noise(x * 0.0007, z * 0.0007, 5.5);
+  let h = 60 * Math.sqrt(n1) + 36 * Math.sqrt(n2) + 15 * Math.sqrt(n3) + 45 * big - 72;
   // keep a lower trough under the causeway so the deck floats above the cloud
-  if (z < 60 && z > -480) h -= 40 * (1 - THREE.MathUtils.smoothstep(Math.abs(x), 14, 120));
+  if (z < 120 && z > -1350) h -= 50 * (1 - THREE.MathUtils.smoothstep(Math.abs(x), 20, 200));
   return { h, k: Math.sqrt(n2) * 0.6 + Math.sqrt(n3) * 0.4 };
 }
 
 // Opaque displaced cloud deck reaching the horizon. Grid is denser near the axis.
 export function createCloudSea() {
-  const N = 440, S = 6000, cz = -300;
+  const N = 500, S = 9000, cz = -900;
   const pos = new Float32Array((N + 1) * (N + 1) * 3), col = new Float32Array(pos.length), c = new THREE.Color();
   const warp = (u) => Math.sign(u) * u * u * S;
   let p = 0;
@@ -64,7 +64,7 @@ export function createCloudPuffs(spots) {
       const r = s.r * rand(0.28, 0.6) * (1 - up * 0.45);
       const ox = s.x + rand(-1, 1) * s.r * (1.3 - up * 0.8), oz = s.z + rand(-1, 1) * s.r * (1 - up * 0.6);
       const oy = s.y + up * s.r * 0.9;
-      const g = new THREE.SphereGeometry(r, 26, 16);
+      const g = new THREE.SphereGeometry(r, 26, 16).scale(1.35, 1, 1.2);
       g.deleteAttribute('uv');
       const p = g.attributes.position, col = new Float32Array(p.count * 3), f = 2.2 / r, seed = Math.random() * 50;
       for (let j = 0; j < p.count; j++) {

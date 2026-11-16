@@ -23,9 +23,9 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 // Light aerial haze: horizon clouds fade out, the palace (~800 m) stays crisp.
-scene.fog = new THREE.FogExp2('#c3d4ea', 0.00022);
+scene.fog = new THREE.FogExp2('#c3d4ea', 0.00013);
 
-const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.5, 9000);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.5, 14000);
 // Title screen shows the hero framing; entering drops the player on the landing.
 camera.position.set(...HERO.pos);
 camera.lookAt(...HERO.look);
@@ -40,7 +40,7 @@ su.sunPosition.value.copy(sunDir);
 
 // Visible sky: a simple gradient dome (clear blue overhead, haze at the horizon).
 // The physical Sky above only feeds the environment lighting.
-const dome = new THREE.Mesh(new THREE.SphereGeometry(8000, 32, 16), new THREE.ShaderMaterial({
+const dome = new THREE.Mesh(new THREE.SphereGeometry(12000, 32, 16), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
   uniforms: { horizon: { value: new THREE.Color('#d3e1f0') }, mid: { value: new THREE.Color('#8fb6e3') }, zenith: { value: new THREE.Color('#3f78c2') } },
   vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w; }',
@@ -60,7 +60,7 @@ scene.environmentIntensity = 0.45;
 const sun = new THREE.DirectionalLight('#fff3e2', 3.2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
-Object.assign(sun.shadow.camera, { left: -260, right: 260, top: 260, bottom: -260, near: 1, far: 1600 });
+Object.assign(sun.shadow.camera, { left: -400, right: 400, top: 400, bottom: -400, near: 1, far: 2400 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.4;
 scene.add(sun, sun.target);
@@ -108,9 +108,9 @@ renderer.setAnimationLoop(() => {
   player.update(dt);
 
   // Shadow frustum sits a little ahead of the camera, where the eye looks.
-  camera.getWorldDirection(shadowCenter).setY(0).normalize().multiplyScalar(180).add(camera.position);
+  camera.getWorldDirection(shadowCenter).setY(0).normalize().multiplyScalar(300).add(camera.position);
   sun.target.position.copy(shadowCenter);
-  sun.position.copy(shadowCenter).addScaledVector(sunDir, 700);
+  sun.position.copy(shadowCenter).addScaledVector(sunDir, 1100);
 
   dome.position.copy(camera.position);
   realm.userData.update?.(t, dt);

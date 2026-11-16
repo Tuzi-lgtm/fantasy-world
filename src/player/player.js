@@ -3,7 +3,7 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 import { SPAWN, VOID } from '../world/layout.js';
 import { walkHeight } from '../world/collision.js';
 
-const STEP = 1.0, DROP = 2.5, LIMIT = 3000, EYE = 1.7, WALK = 8, RUN = 18, FLY = 40, GRAVITY = 30, JUMP = 11;
+const STEP = 1.0, DROP = 2.5, LIMIT = 3000, EYE = 1.7, WALK = 9, RUN = 30, FLY = 90, GRAVITY = 30, JUMP = 11;
 
 export class Player {
   constructor(camera, dom) {
@@ -35,9 +35,10 @@ export class Player {
     if (!this.flying) {
       const nx = cam.position.x, nz = cam.position.z;
       // Blocked: anything taller than a step, or (while grounded) a drop off an edge.
+      // Stairs up to ~40 degrees are walkable at any frame rate: allowance grows with distance moved.
       const blocked = (x, z) => {
-        const h = walkHeight(x, z, feet);
-        return h > feet + STEP || (this.onGround && h < feet - DROP);
+        const h = walkHeight(x, z, feet), moved = Math.hypot(x - ox, z - oz);
+        return h > feet + STEP + moved * 0.9 || (this.onGround && h < feet - DROP - moved);
       };
       if (blocked(nx, nz)) {
         if (!blocked(nx, oz)) cam.position.z = oz;
