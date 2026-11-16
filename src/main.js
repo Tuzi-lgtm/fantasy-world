@@ -6,7 +6,11 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createTerrain, heightAt, WORLD_SIZE } from './world/terrain.js';
-import { createTrees, createRocks, createCrystals, createFloatingIslands, createFireflies } from './world/props.js';
+import { createTrees, createRocks, createCrystals, createFireflies } from './world/props.js';
+import { createPalace } from './world/palace.js';
+import { createFloatingTemples, createPeaks, createClouds } from './world/scenery.js';
+import { walkHeight } from './world/collision.js';
+import { SPAWN } from './world/layout.js';
 import { createWaterNormals } from './world/waterNormals.js';
 import { loadAssets } from './world/assets.js';
 import { Player } from './player/player.js';
@@ -17,24 +21,25 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.6;
+renderer.toneMappingExposure = 0.65;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const fogColor = new THREE.Color('#9fb3c8');
-scene.fog = new THREE.FogExp2(fogColor, 0.0042);
+// Density chosen so the main hall (~600 m from spawn) stays readable (~50% fog).
+const fogColor = new THREE.Color('#c4c2ba');
+scene.fog = new THREE.FogExp2(fogColor, 0.0012);
 
-const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 3000);
-camera.position.set(0, heightAt(0, 60) + 1.7, 60);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.3, 4000);
+camera.position.set(SPAWN.x, walkHeight(SPAWN.x, SPAWN.z) + 1.7, SPAWN.z);
 
 // ---------- Sky & light (golden hour) ----------
 const sky = new Sky();
-sky.scale.setScalar(5000);
+sky.scale.setScalar(7000);
 const su = sky.material.uniforms;
 su.turbidity.value = 6; su.rayleigh.value = 2.2; su.mieCoefficient.value = 0.006; su.mieDirectionalG.value = 0.85;
-const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(82), THREE.MathUtils.degToRad(200));
+const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(74), THREE.MathUtils.degToRad(35));
 su.sunPosition.value.copy(sunDir);
 scene.add(sky);
 
@@ -47,7 +52,7 @@ scene.environmentIntensity = 0.5;
 const sun = new THREE.DirectionalLight('#ffd6a0', 3);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -80, right: 80, top: 80, bottom: -80, near: 1, far: 600 });
+Object.assign(sun.shadow.camera, { left: -140, right: 140, top: 140, bottom: -140, near: 1, far: 900 });
 sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 scene.add(new THREE.HemisphereLight('#bcd4ff', '#3a2e22', 0.6));
@@ -63,16 +68,19 @@ water.rotation.x = -Math.PI / 2;
 water.position.y = 0;
 scene.add(water);
 
-scene.add(createTrees(), createRocks(), createCrystals());
-const islands = createFloatingIslands();
+const peaks = createPeaks();
+scene.add(createPalace(), peaks.mesh);
+scene.add(createTrees(peaks.tops.map(t => new THREE.Vector3(t.x, t.y, t.z))), createRocks(), createCrystals());
+const islands = createFloatingTemples();
+const clouds = createClouds();
 const fireflies = createFireflies();
-scene.add(islands, fireflies);
+scene.add(islands, clouds, fireflies);
 loadAssets(scene);
 
 // ---------- Post ----------
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6, 0.6, 0.85));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.6, 0.9));
 composer.addPass(new OutputPass());
 
 // ---------- Player ----------
@@ -100,10 +108,11 @@ renderer.setAnimationLoop(() => {
 
   // Shadow frustum follows the player.
   sun.target.position.copy(camera.position);
-  sun.position.copy(camera.position).addScaledVector(sunDir, 300);
+  sun.position.copy(camera.position).addScaledVector(sunDir, 450);
 
   water.material.uniforms.time.value += dt * 0.5;
   islands.userData.update(t);
+  clouds.userData.update(dt);
   fireflies.userData.update(t);
   composer.render();
 
@@ -115,4 +124,4 @@ renderer.setAnimationLoop(() => {
 });
 
 // Expose for debugging / screenshot automation.
-window.__world = { scene, camera, player };
+window.__world = { scene, camera, player, renderer, water, composer };

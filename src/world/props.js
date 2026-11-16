@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { heightAt, WORLD_SIZE } from './terrain.js';
+import { plazaDistance, COURT } from './layout.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -11,6 +12,7 @@ function scatter(count, minH, maxH, radius = WORLD_SIZE * 0.45) {
   while (out.length < count && tries++ < count * 20) {
     const x = rand(-radius, radius), z = rand(-radius, radius);
     const y = heightAt(x, z);
+    if (plazaDistance(x, z) < 25) continue;
     if (y > minH && y < maxH) out.push(new THREE.Vector3(x, y, z));
   }
   return out;
@@ -31,25 +33,26 @@ function instanced(geo, mat, points, scaleRange, { sink = 0, cast = true } = {})
   return mesh;
 }
 
-export function createTrees() {
-  const trunk = new THREE.CylinderGeometry(0.25, 0.4, 3, 6).translate(0, 1.5, 0);
-  const crowns = [0, 1, 2].map(i =>
-    new THREE.ConeGeometry(2.4 - i * 0.6, 3.2, 7).translate(0, 3.6 + i * 1.6, 0));
+export function createTrees(extra = []) {
+  // Chinese pine: tall trunk, flat layered crowns offset to one side.
+  const trunk = new THREE.CylinderGeometry(0.3, 0.5, 7, 6).translate(0, 3.5, 0);
+  const crowns = [[3.0, 4.2, 0.6], [2.4, 5.6, -0.5], [1.6, 6.9, 0.3]].map(([r, y, ox]) =>
+    new THREE.CylinderGeometry(r * 0.8, r, 0.9, 8).translate(ox, y, ox * 0.5));
   // Bake trunk/crown colors into vertex colors so one draw call covers all trees.
   const paint = (g, hex) => {
     const c = new THREE.Color(hex), n = g.attributes.position.count;
     g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).map((_, j) => [c.r, c.g, c.b][j % 3]), 3));
     return g;
   };
-  const geo = mergeGeometries([paint(trunk, '#4a3426'), ...crowns.map(g => paint(g, '#1f3d2b'))]);
+  const geo = mergeGeometries([paint(trunk, '#3e2b20'), ...crowns.map(g => paint(g, '#2a4630'))]);
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
-  return instanced(geo, mat, scatter(1400, 1.5, 40), [0.8, 1.8]);
+  return instanced(geo, mat, [...scatter(2600, 1.5, 120), ...extra], [0.8, 1.8]);
 }
 
 export function createRocks() {
   const geo = new THREE.DodecahedronGeometry(1, 0);
   const mat = new THREE.MeshStandardMaterial({ color: '#77716a', roughness: 1, flatShading: true });
-  return instanced(geo, mat, scatter(500, -2, 60), [0.4, 2.5], { sink: 0.4 });
+  return instanced(geo, mat, scatter(900, -2, 150), [0.6, 3.5], { sink: 0.4 });
 }
 
 // Glowing crystal clusters — the "magic" accent of the world.
@@ -57,9 +60,9 @@ export function createCrystals() {
   const group = new THREE.Group();
   const geo = new THREE.OctahedronGeometry(1, 0).scale(0.5, 2.2, 0.5);
   const mat = new THREE.MeshStandardMaterial({
-    color: '#6fe3ff', emissive: '#2bb8ff', emissiveIntensity: 2.2, roughness: 0.2, metalness: 0.1,
+    color: '#8ff0c0', emissive: '#2fd690', emissiveIntensity: 1.8, roughness: 0.2, metalness: 0.1,
   });
-  for (const p of scatter(18, 2, 30, WORLD_SIZE * 0.3)) {
+  for (const p of scatter(14, 2, 60, WORLD_SIZE * 0.4)) {
     const cluster = new THREE.Group();
     const n = Math.floor(rand(3, 7));
     for (let i = 0; i < n; i++) {
@@ -69,53 +72,22 @@ export function createCrystals() {
       c.scale.setScalar(rand(0.5, 1.4));
       cluster.add(c);
     }
-    const light = new THREE.PointLight('#4cc9ff', 40, 25, 2);
-    light.position.y = 2.5;
-    cluster.add(light);
     cluster.position.copy(p);
     group.add(cluster);
   }
   return group;
 }
 
-// Floating islands drifting above the valley.
-export function createFloatingIslands() {
-  const group = new THREE.Group();
-  const rockMat = new THREE.MeshStandardMaterial({ color: '#5b544d', roughness: 1, flatShading: true });
-  const topMat = new THREE.MeshStandardMaterial({ color: '#4f6b32', roughness: 1, flatShading: true });
-  for (let i = 0; i < 9; i++) {
-    const r = rand(6, 16);
-    const island = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.ConeGeometry(r, r * 1.6, 9).rotateX(Math.PI), rockMat);
-    base.position.y = -r * 0.8;
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.95, 1.2, 9), topMat);
-    base.castShadow = top.castShadow = true;
-    island.add(base, top);
-    const a = (i / 9) * Math.PI * 2, d = rand(80, 240);
-    island.position.set(Math.cos(a) * d, rand(55, 110), Math.sin(a) * d);
-    island.userData.phase = rand(0, Math.PI * 2);
-    island.userData.baseY = island.position.y;
-    group.add(island);
-  }
-  group.userData.update = (t) => {
-    for (const isl of group.children) {
-      isl.position.y = isl.userData.baseY + Math.sin(t * 0.3 + isl.userData.phase) * 2;
-      isl.rotation.y += 0.0005;
-    }
-  };
-  return group;
-}
-
 export function createFireflies(count = 600) {
   const pos = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
-    const x = rand(-200, 200), z = rand(-200, 200);
+    const x = rand(-COURT.x, COURT.x), z = rand(COURT.zMin, COURT.zMax);
     pos.set([x, heightAt(x, z) + rand(0.5, 6), z], i * 3);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const mat = new THREE.PointsMaterial({
-    color: '#ffe9a0', size: 0.35, transparent: true, opacity: 0.9,
+    color: '#ffd27a', size: 0.5, transparent: true, opacity: 0.9,
     blending: THREE.AdditiveBlending, depthWrite: false,
   });
   const pts = new THREE.Points(geo, mat);

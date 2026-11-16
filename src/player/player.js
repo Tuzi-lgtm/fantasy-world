@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
-import { heightAt, WORLD_SIZE } from '../world/terrain.js';
+import { WORLD_SIZE } from '../world/terrain.js';
+import { walkHeight } from '../world/collision.js';
 
-const EYE = 1.7, WALK = 8, RUN = 18, FLY = 40, GRAVITY = 30, JUMP = 11;
+const STEP = 1.0, EYE = 1.7, WALK = 8, RUN = 18, FLY = 40, GRAVITY = 30, JUMP = 11;
 
 export class Player {
   constructor(camera, dom) {
@@ -26,10 +27,22 @@ export class Player {
 
     const fwd = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0);
     const side = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
+    const ox = cam.position.x, oz = cam.position.z, feet = cam.position.y - EYE;
     this.controls.moveForward(fwd * speed * dt);
     this.controls.moveRight(side * speed * dt);
 
-    const ground = heightAt(cam.position.x, cam.position.z) + EYE;
+    // Anything taller than a step blocks (walls, terrace faces). Slide along axes.
+    if (!this.flying) {
+      const nx = cam.position.x, nz = cam.position.z;
+      const blocked = (x, z) => walkHeight(x, z, feet) > feet + STEP;
+      if (blocked(nx, nz)) {
+        if (!blocked(nx, oz)) cam.position.z = oz;
+        else if (!blocked(ox, nz)) cam.position.x = ox;
+        else { cam.position.x = ox; cam.position.z = oz; }
+      }
+    }
+
+    const ground = walkHeight(cam.position.x, cam.position.z, feet) + EYE;
     if (this.flying) {
       cam.position.y += ((k.Space ? 1 : 0) - (k.KeyC ? 1 : 0)) * speed * dt;
       cam.position.y = Math.max(cam.position.y, ground);
