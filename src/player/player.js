@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
-import { WORLD_SIZE } from '../world/terrain.js';
+import { SPAWN, VOID } from '../world/layout.js';
 import { walkHeight } from '../world/collision.js';
 
-const STEP = 1.0, EYE = 1.7, WALK = 8, RUN = 18, FLY = 40, GRAVITY = 30, JUMP = 11;
+const STEP = 1.0, DROP = 2.5, LIMIT = 3000, EYE = 1.7, WALK = 8, RUN = 18, FLY = 40, GRAVITY = 30, JUMP = 11;
 
 export class Player {
   constructor(camera, dom) {
@@ -34,7 +34,11 @@ export class Player {
     // Anything taller than a step blocks (walls, terrace faces). Slide along axes.
     if (!this.flying) {
       const nx = cam.position.x, nz = cam.position.z;
-      const blocked = (x, z) => walkHeight(x, z, feet) > feet + STEP;
+      // Blocked: anything taller than a step, or (while grounded) a drop off an edge.
+      const blocked = (x, z) => {
+        const h = walkHeight(x, z, feet);
+        return h > feet + STEP || (this.onGround && h < feet - DROP);
+      };
       if (blocked(nx, nz)) {
         if (!blocked(nx, oz)) cam.position.z = oz;
         else if (!blocked(ox, nz)) cam.position.x = ox;
@@ -45,7 +49,7 @@ export class Player {
     const ground = walkHeight(cam.position.x, cam.position.z, feet) + EYE;
     if (this.flying) {
       cam.position.y += ((k.Space ? 1 : 0) - (k.KeyC ? 1 : 0)) * speed * dt;
-      cam.position.y = Math.max(cam.position.y, ground);
+      if (ground > -Infinity) cam.position.y = Math.max(cam.position.y, ground);
     } else {
       if (k.Space && this.onGround) this.vel.y = JUMP;
       this.vel.y -= GRAVITY * dt;
@@ -54,8 +58,13 @@ export class Player {
       if (this.onGround) { cam.position.y = ground; this.vel.y = 0; }
     }
 
-    const lim = WORLD_SIZE * 0.48;
-    cam.position.x = THREE.MathUtils.clamp(cam.position.x, -lim, lim);
-    cam.position.z = THREE.MathUtils.clamp(cam.position.z, -lim, lim);
+    cam.position.x = THREE.MathUtils.clamp(cam.position.x, -LIMIT, LIMIT);
+    cam.position.z = THREE.MathUtils.clamp(cam.position.z, -LIMIT, LIMIT);
+    if (cam.position.y < VOID) this.respawn();
+  }
+
+  respawn() {
+    this.camera.position.set(SPAWN.x, SPAWN.y + EYE, SPAWN.z);
+    this.vel.set(0, 0, 0); this.flying = false;
   }
 }

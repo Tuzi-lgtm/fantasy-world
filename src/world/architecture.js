@@ -7,7 +7,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export const COL = {
   marble: '#d6d0c2', marbleDark: '#bdb5a4', red: '#8a2318', column: '#a52a1c',
   teal: '#2b5c5e', tealDark: '#1d3f42', gold: '#c99b3b', soffit: '#3d5f5c',
-  ridge: '#a8771c', plaque: '#1c2f5a',
+  ridge: '#a8771c', plaque: '#1c2f5a', timber: '#9c3a22', timberDark: '#5e2216', slateRidge: '#2a323c',
 };
 
 function canvasTex(w, h, draw) {
@@ -61,6 +61,7 @@ const MATS = {
   lattice: new THREE.MeshStandardMaterial({ map: latticeTex, roughness: 0.7 }),
   yellow: new THREE.MeshStandardMaterial({ map: tileTex, color: '#e3a92b', roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide }),
   green: new THREE.MeshStandardMaterial({ map: tileTex, color: '#3f8a5c', roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide }),
+  slate: new THREE.MeshStandardMaterial({ map: tileTex, color: '#55667a', roughness: 0.5, metalness: 0.1, side: THREE.DoubleSide }),
   blue: new THREE.MeshStandardMaterial({ map: tileTex, color: '#3c5f9e', roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide }),
 };
 
@@ -107,6 +108,7 @@ export function hipRoof(kit, o) {
   const { W, D, H, t1 = 1, color = 'yellow', x = 0, y = 0, z = 0, inner, rotY = 0 } = o;
   const R = Math.max(o.R ?? W - D * 0.85, 0);
   const lift = o.lift ?? D * 0.16, flare = o.flare ?? D * 0.07, thk = o.thk ?? D * 0.05;
+  const ridgeCol = color === 'slate' ? COL.slateRidge : COL.ridge, soffitCol = color === 'slate' ? COL.timber : COL.soffit;
   const M = 12, N = 24, tileW = o.tileW ?? Math.max(D * 0.04, 0.6), slant = Math.hypot(D, H);
   const m4 = new THREE.Matrix4().makeRotationY(rotY).setPosition(x, y, z);
 
@@ -148,7 +150,7 @@ export function hipRoof(kit, o) {
       if (i === 0) return p;
       if (i === 1) return [p[0], p[1] - thk, p[2]];
       return s < 2 ? [a * iw, -thk * 0.5, s === 0 ? id : -id] : [s === 2 ? iw : -iw, -thk * 0.5, a * id];
-    }), COL.soffit));
+    }), soffitCol));
   }
 
   // hip ridges
@@ -156,16 +158,16 @@ export function hipRoof(kit, o) {
   for (const [s, a] of [[0, 1], [0, -1], [1, 1], [1, -1]]) {
     const pts = []; for (let i = 0; i <= 10; i++) pts.push(new THREE.Vector3(...P(s, a, t1 * i / 10)));
     const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, rr, 5).applyMatrix4(m4);
-    kit.add('paint', paint(g, COL.ridge));
+    kit.add('paint', paint(g, ridgeCol));
   }
   // main ridge + ornaments
   if (t1 >= 1) {
     const rh = Math.max(D * 0.07, 0.4), rw = rr * 2.4;
     if (R > 0.5) {
-      kit.add('paint', paint(new THREE.BoxGeometry(2 * R + rw, rh, rw).translate(0, H + rh / 2 - rr, 0).applyMatrix4(m4), COL.ridge));
+      kit.add('paint', paint(new THREE.BoxGeometry(2 * R + rw, rh, rw).translate(0, H + rh / 2 - rr, 0).applyMatrix4(m4), ridgeCol));
       for (const sx of [-1, 1]) // chiwen: tall end ornaments, curled inward
         kit.add('paint', paint(new THREE.BoxGeometry(rw * 1.4, rh * 2.6, rw * 1.6)
-          .translate(sx * R, H + rh * 1.3, 0).applyMatrix4(m4), COL.ridge));
+          .translate(sx * R, H + rh * 1.3, 0).applyMatrix4(m4), ridgeCol));
     } else {
       kit.add('paint', paint(new THREE.SphereGeometry(rh * 0.9, 10, 8).translate(0, H + rh, 0).applyMatrix4(m4), COL.gold));
       kit.add('paint', paint(new THREE.ConeGeometry(rh * 0.5, rh * 3, 8).translate(0, H + rh * 3, 0).applyMatrix4(m4), COL.gold));
@@ -254,19 +256,19 @@ export function pagoda(kit, { x = 0, y = 0, z = 0, w, floors = 5, colH, roof = '
 // Balustrade between two base points (any direction, may slope).
 // ---------------------------------------------------------------------------
 const UP = new THREE.Vector3(0, 1, 0);
-export function rail(kit, a, b, { h = 1.6, sp = 2.2, spouts = null } = {}) {
+export function rail(kit, a, b, { h = 1.6, sp = 2.2, spouts = null, color = COL.marble } = {}) {
   const len = a.distanceTo(b); if (len < 0.5) return;
   const n = Math.max(1, Math.round(len / sp));
   for (let i = 0; i <= n; i++) {
     const p = a.clone().lerp(b, i / n);
-    kit.box(0.4, h, 0.4, p.x, p.y + h / 2, p.z, COL.marble);
-    kit.box(0.55, 0.35, 0.55, p.x, p.y + h + 0.17, p.z, COL.marble);
+    kit.box(0.4, h, 0.4, p.x, p.y + h / 2, p.z, color);
+    kit.box(0.55, 0.35, 0.55, p.x, p.y + h + 0.17, p.z, color);
     if (spouts) kit.box(0.5, 0.5, 0.5, p.x + spouts.x * 0.9, p.y - 0.7, p.z + spouts.z * 0.9, COL.marbleDark);
   }
   for (const yy of [h * 0.85, h * 0.12]) {
     const g = new THREE.BoxGeometry(0.28, 0.22, len);
     const m = new THREE.Matrix4().lookAt(a, b, UP).setPosition(a.clone().lerp(b, 0.5).add(new THREE.Vector3(0, yy, 0)));
-    kit.add('paint', paint(g.applyMatrix4(m), COL.marble));
+    kit.add('paint', paint(g.applyMatrix4(m), color));
   }
 }
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -399,6 +401,42 @@ export function paifang(kit, { z, center, side, pillar: p, h, G }) {
   kit.box(center * 0.5, 4.5, 0.6, 0, G + h - 9.8, z + p * 0.42, COL.gold);
   kit.box(center * 0.45, 3.8, 0.7, 0, G + h - 9.8, z + p * 0.45, COL.plaque);
   hipRoof(kit, { W: xi + p * 1.2, D: p * 1.5, H: p * 1.5, color: 'blue', x: 0, y: G + h - 2, z, inner: [xi, p * 0.7] });
+}
+
+// Open timber tower (pillar-top pavilion): storeys with balconies, columns,
+// lattice core, skirt roofs, full roof on top. (x,y,z) = floor centre.
+export function tower(kit, { x = 0, y = 0, z = 0, w, floors = 3, colH, roof = 'slate' }) {
+  let yy = y, s = w;
+  for (let f = 0; f < floors; f++) {
+    const h = f === 0 ? colH : colH * 0.8;
+    // floor deck + balcony rail
+    kit.box(s + 1.5, 1.2, s + 1.5, x, yy + 0.6, z, COL.timberDark);
+    yy += 1.2;
+    const e = s / 2 + 0.3, r = { color: COL.timber, h: 1.3, sp: 1.8 };
+    rail(kit, V(x - e, yy, z - e), V(x + e, yy, z - e), r); rail(kit, V(x - e, yy, z + e), V(x + e, yy, z + e), r);
+    rail(kit, V(x - e, yy, z - e), V(x - e, yy, z + e), r); rail(kit, V(x + e, yy, z - e), V(x + e, yy, z + e), r);
+    // perimeter columns + lattice core
+    const n = 4;
+    for (let i = 0; i <= n; i++) for (const sd of [-1, 1]) {
+      const t = -s / 2 + 0.6 + (s - 1.2) * i / n;
+      for (const [cx, cz] of [[t, sd * (s / 2 - 0.6)], [sd * (s / 2 - 0.6), t]])
+        kit.add('paint', paint(new THREE.CylinderGeometry(s * 0.022, s * 0.024, h, 8).translate(x + cx, yy + h / 2, z + cz), COL.column));
+    }
+    const core = new THREE.BoxGeometry(s * 0.72, h, s * 0.72).translate(x, yy + h / 2, z);
+    const uv = core.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * 3);
+    kit.add('lattice', core);
+    // bracket band
+    kit.box(s * 1.02, h * 0.16, s * 1.02, x, yy + h + h * 0.08, z, COL.timber);
+    kit.box(s * 1.1, h * 0.14, s * 1.1, x, yy + h + h * 0.23, z, COL.timberDark);
+    yy += h * 1.3;
+    const D = s / 2 + s * 0.3;
+    if (f === floors - 1) {
+      hipRoof(kit, { W: D * 1.05, D, R: D * 0.25, H: D * 0.65, color: roof, x, y: yy, z, inner: [s / 2, s / 2] });
+    } else {
+      const sk = hipRoof(kit, { W: D, D, R: 0, H: D * 0.55, t1: 0.42, color: roof, x, y: yy, z, inner: [s / 2, s / 2] });
+      yy = sk.topY; s = s * 0.86;
+    }
+  }
 }
 
 export { MATS };
