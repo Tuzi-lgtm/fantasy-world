@@ -24,14 +24,22 @@ export const PILLARS = [{ x: -290, z: -800 }, { x: 290, z: -800 }].map(p => ({
   ...p, base: -160, top: 240, r: 28, pavilion: { w: 100, floors: 3, colH: 21 },
 }));
 
-// Palace, front to back (reference layers): forested rocks with two pedestal towers
-// flanking the causeway end -> gate hall the causeway runs into -> the main stacked
-// palace (4 roof tiers) -> pavilions and pagodas stepping up on both flanks -> cliff + falls.
+// Palace depth layers, numbered as in the annotated reference (1 nearest):
+// 1 pedestal pagodas flanking the causeway end
+// 2 low gate building on the axis + wide two-tier pavilions further out
+// 3 two towers per side
+// 4 wide front hall (double roof) + one flank pavilion per side
+// 5 very wide multi-storey block + corner pavilions + slender pagodas
+// 6 top hall, highest and furthest back
 export const LEVELS = [
-  { top: DECK, z0: -1400, z1: -1300, hw: 170, halls: [
-    { x: 0, z: -1345, w: 160, d: 46, colH: 19, bays: 7, passage: 18, gate: true }] },
-  { top: 90, z0: -1700, z1: -1450, hw: 240, halls: [
-    { x: 0, z: -1585, w: 380, d: 160, colH: 30, floors: 4, stacked: true, main: true }] },
+  { layer: 2, top: DECK, z0: -1400, z1: -1300, hw: 120, halls: [
+    { x: 0, z: -1350, w: 130, d: 40, colH: 15, bays: 7, passage: 18, double: false }] },
+  { layer: 4, top: 95, z0: -1560, z1: -1445, hw: 155, halls: [
+    { x: 0, z: -1505, w: 250, d: 70, colH: 22, bays: 11, passage: 22 }] },
+  { layer: 5, top: 140, z0: -1730, z1: -1610, hw: 270, halls: [
+    { x: 0, z: -1670, w: 470, d: 100, colH: 20, floors: 3, stacked: true }] },
+  { layer: 6, top: 205, z0: -1910, z1: -1800, hw: 200, halls: [
+    { x: 0, z: -1860, w: 320, d: 90, colH: 28, bays: 11, main: true }] },
 ];
 export const PALACE_STAIRS = LEVELS.slice(1).map((L, i) => ({
   w: 28, zHigh: L.z1, zLow: LEVELS[i].z0, yHigh: L.top, yLow: LEVELS[i].top,
@@ -39,24 +47,25 @@ export const PALACE_STAIRS = LEVELS.slice(1).map((L, i) => ({
 // Forested rock islands either side of the causeway's last stretch.
 export const FOREST_ROCKS = [-1, 1].flatMap(s => [
   { x: s * 45, z: -1060, top: 50, r: 30 }, { x: s * 95, z: -1120, top: 56, r: 45 },
-  { x: s * 55, z: -1200, top: 54, r: 38 }, { x: s * 120, z: -1230, top: 58, r: 50 },
+  { x: s * 55, z: -1200, top: 54, r: 38 }, { x: s * 125, z: -1200, top: 58, r: 50 },
   { x: s * 60, z: -1275, top: 52, r: 32 },
 ]);
-// Three-storey towers on white pedestals (the pair flanking the causeway end) ...
-export const PEDESTAL_TOWERS = [-1, 1].map(s => ({ x: s * 72, z: -1180, top: 100, w: 26, floors: 3, colH: 9 }));
-// ... and towers / slender pagodas on rock spires stepping up behind on both flanks.
+// Layer 1: three-storey towers on tall white pedestals.
+export const PEDESTAL_TOWERS = [-1, 1].map(s => ({ x: s * 100, z: -1255, top: 98, w: 26, floors: 3, colH: 9 }));
+// Layers 2-5 flank pavilions on rock spires (top = rock height they stand on).
 export const FLANK_TOWERS = [-1, 1].flatMap(s => [
-  { x: s * 225, z: -1420, top: 80, w: 34, floors: 3, colH: 10 },
-  { x: s * 290, z: -1530, top: 110, w: 30, floors: 3, colH: 9 },
-  { x: s * 320, z: -1680, top: 140, w: 26, floors: 3, colH: 8 },
+  { layer: 2, x: s * 180, z: -1345, top: 50, w: 42, floors: 2, colH: 10 },
+  { layer: 3, x: s * 150, z: -1425, top: 78, w: 28, floors: 3, colH: 8 },
+  { layer: 3, x: s * 215, z: -1440, top: 72, w: 30, floors: 3, colH: 8 },
+  { layer: 4, x: s * 205, z: -1520, top: 102, w: 30, floors: 3, colH: 9 },
+  { layer: 5, x: s * 225, z: -1615, top: 140, w: 34, floors: 2, colH: 10, onLevel: true },
 ]);
 export const PAGODA_SPIRES = [-1, 1].flatMap(s => [
-  { x: s * 370, z: -1460, top: 85, w: 18, floors: 5 },
-  { x: s * 215, z: -1760, top: 160, w: 20, floors: 5 },
-  { x: s * 400, z: -1640, top: 125, w: 16, floors: 4 },
+  { layer: 5, x: s * 300, z: -1660, top: 150, w: 22, floors: 5 },
+  { layer: 6, x: s * 420, z: -1560, top: 110, w: 16, floors: 4 },
 ]);
-export const CLIFF = { z: -2050, top: 1000 };
-export const FALLS = [{ x: -40, w: 170, z: -1800 }, { x: 170, w: 45, z: -1820 }];
+export const CLIFF = { z: -2150, top: 1000 };
+export const FALLS = [{ x: -40, w: 170, z: -1960 }, { x: 170, w: 45, z: -1980 }];
 
 // ---------- colliders ----------
 // top: walkable height. ramp: linear in z. bottom: ignored while below it.
@@ -76,7 +85,7 @@ for (const L of LANDINGS) {
 for (const L of LEVELS) {
   box(-L.hw, L.hw, L.z0, L.z1, L.top);
   for (const h of L.halls) {
-    const x0 = h.x - h.w / 2 - 10, x1 = h.x + h.w / 2 + 10, z0 = h.z - h.d / 2 - 10, z1 = h.z + h.d / 2 + 10;
+    const m = h.stacked ? 3 : 10, x0 = h.x - h.w / 2 - m, x1 = h.x + h.w / 2 + m, z0 = h.z - h.d / 2 - m, z1 = h.z + h.d / 2 + m;
     if (h.passage) {   // walk-through centre bay
       const p = h.passage / 2 - 1;
       box(x0, h.x - p, z0, z1, L.top + 60); box(h.x + p, x1, z0, z1, L.top + 60);

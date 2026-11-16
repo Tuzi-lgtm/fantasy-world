@@ -244,7 +244,7 @@ export function createSkyRealm() {
     for (const h of L.halls) {
       const ht = h.stacked
         ? stackedHall(kit, { x: h.x, y: L.top, z: h.z, w: h.w, d: h.d, floors: h.floors, colH: h.colH })
-        : hall(kit, { ...h, y: L.top, double: true, roof: 'slate', plaque: true, bays: h.bays ?? 7, plinthH: h.passage ? 0.6 : undefined });
+        : hall(kit, { ...h, y: L.top, double: h.double ?? true, roof: 'slate', plaque: true, bays: h.bays ?? 7, plinthH: h.passage ? 0.6 : undefined });
       if (h.main) setColliderTop('mainHall', L.top + ht);
     }
   }
@@ -259,7 +259,7 @@ export function createSkyRealm() {
   }
   // Pavilions on spires stepping up both flanks
   for (const t of FLANK_TOWERS) {
-    rocks.push(rock(t.x, t.z, -120, t.top, t.w * 0.7, t.w * 1.0, { moss: 0.85 }));
+    if (!t.onLevel) rocks.push(rock(t.x, t.z, -120, t.top, t.w * 0.7, t.w * 1.0, { moss: 0.85 }));
     tower(kit, { ...t, y: t.top });
   }
 
