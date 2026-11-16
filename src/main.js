@@ -37,12 +37,25 @@ const su = sky.material.uniforms;
 su.turbidity.value = 2.2; su.rayleigh.value = 3; su.mieCoefficient.value = 0.002; su.mieDirectionalG.value = 0.8;
 const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(40), THREE.MathUtils.degToRad(255));
 su.sunPosition.value.copy(sunDir);
-scene.add(sky);
+
+// Visible sky: a simple gradient dome (clear blue overhead, haze at the horizon).
+// The physical Sky above only feeds the environment lighting.
+const dome = new THREE.Mesh(new THREE.SphereGeometry(8000, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { horizon: { value: new THREE.Color('#d3e1f0') }, mid: { value: new THREE.Color('#8fb6e3') }, zenith: { value: new THREE.Color('#3f78c2') } },
+  vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w; }',
+  fragmentShader: `uniform vec3 horizon, mid, zenith; varying vec3 vDir;
+    void main(){ float e = max(vDir.y, 0.0);
+      vec3 c = mix(horizon, mid, smoothstep(0.0, 0.26, e)); c = mix(c, zenith, smoothstep(0.26, 0.9, e));
+      gl_FragColor = vec4(c, 1.0); }`,
+}));
+dome.renderOrder = -1;
+scene.add(dome);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 const skyScene = new THREE.Scene(); skyScene.add(sky.clone());
 scene.environment = pmrem.fromScene(skyScene).texture;
-scene.environmentIntensity = 0.6;
+scene.environmentIntensity = 0.45;
 
 const sun = new THREE.DirectionalLight('#fff3e2', 3.2);
 sun.castShadow = true;
@@ -51,7 +64,7 @@ Object.assign(sun.shadow.camera, { left: -260, right: 260, top: 260, bottom: -26
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.4;
 scene.add(sun, sun.target);
-scene.add(new THREE.HemisphereLight('#bcd6ff', '#9aa6b8', 0.7));
+scene.add(new THREE.HemisphereLight('#bcd6ff', '#8a96aa', 0.4));
 
 // ---------- World ----------
 scene.add(createCloudSea());
@@ -78,6 +91,7 @@ player.controls.addEventListener('lock', () => overlay.classList.add('hidden'));
 player.controls.addEventListener('unlock', () => overlay.classList.remove('hidden'));
 
 addEventListener('resize', () => {
+  dome.position.copy(camera.position);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
@@ -98,6 +112,7 @@ renderer.setAnimationLoop(() => {
   sun.target.position.copy(shadowCenter);
   sun.position.copy(shadowCenter).addScaledVector(sunDir, 700);
 
+  dome.position.copy(camera.position);
   realm.userData.update?.(t, dt);
   composer.render();
 
@@ -108,4 +123,4 @@ renderer.setAnimationLoop(() => {
   }
 });
 
-window.__world = { scene, camera, player, renderer, composer };
+window.__world = { scene, camera, player, renderer, composer, dome };

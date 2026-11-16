@@ -75,6 +75,13 @@ for (const s of [-1, 1]) {
     railBox(s * L.hw - 1, s * L.hw + 1, L.z0, L.z1, DECK);
     for (const zz of [L.z0, L.z1]) railBox(Math.min(s * CW / 2, s * L.hw), Math.max(s * CW / 2, s * L.hw), zz - 1, zz + 1, DECK);
   }
+  for (const [i, L] of LEVELS.entries()) {
+    railBox(s * L.hw - 1.5, s * L.hw + 1.5, L.z0, L.z1, L.top);
+    for (const [zz, open] of [[L.z1, true], [L.z0, i < LEVELS.length - 1]]) {
+      const inner = open ? s * 11 : 0;
+      railBox(Math.min(inner, s * L.hw), Math.max(inner, s * L.hw), zz - 1.5, zz + 1.5, L.top);
+    }
+  }
   for (const st of PALACE_STAIRS) box(s * st.w / 2 - 0.6, s * st.w / 2 + 0.6, st.zHigh, st.zLow, st.yHigh + RAIL + 2);
 }
 

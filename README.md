@@ -16,4 +16,4 @@ Drop `.glb` files in `public/models/` and list them in `public/models/manifest.j
 [{ "file": "castle.glb", "position": [40, -20], "scale": 1, "rotationY": 0 }]
 ```
 
-Y snaps to the terrain unless `"y"` is set.
+Y snaps to the walkable surface below (or the causeway height over open cloud) unless `"y"` is set. The dragon pillar anchors are listed in `src/world/layout.js` (`PILLARS`) as the first slot for a hero asset.

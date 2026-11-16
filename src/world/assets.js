@@ -1,6 +1,7 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { walkHeight } from './collision.js';
+import { DECK } from './layout.js';
 
 // Loads your own assets listed in public/models/manifest.json.
 // Each entry: { "file": "castle.glb", "position": [x, z], "scale": 1, "rotationY": 0, "yOffset": 0 }
@@ -21,7 +22,8 @@ export async function loadAssets(scene) {
       const gltf = await loader.loadAsync(`/models/${e.file}`);
       const obj = gltf.scene;
       const [x, z] = e.position ?? [0, 0];
-      obj.position.set(x, e.y ?? walkHeight(x, z) + (e.yOffset ?? 0), z);
+      const ground = walkHeight(x, z);   // -Infinity over the void
+      obj.position.set(x, e.y ?? (Number.isFinite(ground) ? ground : DECK) + (e.yOffset ?? 0), z);
       obj.scale.setScalar(e.scale ?? 1);
       obj.rotation.y = e.rotationY ?? 0;
       obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });

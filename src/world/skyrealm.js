@@ -154,9 +154,9 @@ export function createSkyRealm() {
   kit.box(CW - 4, 0.1, PAD.z1 - PAD.z0 - 4, 0, PAD.top + 0.06, (PAD.z0 + PAD.z1) / 2, COL.marble);
   kit.box(4, 0.12, PAD.z1 - PAD.z0 - 4, 0, PAD.top + 0.08, (PAD.z0 + PAD.z1) / 2, COL.marbleDark);
   rocks.push(rock(0, 8, -70, PAD.top - 4, 34, 18, { moss: 0.85 }));
-  rocks.push(rock(-30, -2, -40, PAD.top + 2, 16, 8, { moss: 0.6 }));
+  rocks.push(rock(-30, -2, -40, PAD.top - 14, 16, 8, { moss: 0.6 }));
   rocks.push(rock(24, -2, -50, PAD.top - 6, 14, 8, { moss: 0.6 }));
-  pine(kit, -30, PAD.top + 1, -4);
+  pine(kit, -30, PAD.top - 15, -4);
   railRect(kit, PAD.x0, PAD.x1, PAD.z0, PAD.z1, PAD.top, { back: [[-CW / 2 - 0.6, CW / 2 + 0.6]] });
   stairs(kit, STAIR1);
 

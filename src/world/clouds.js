@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 const noise = new ImprovedNoise();
 const rand = (a, b) => a + Math.random() * (b - a);
-const crease = new THREE.Color('#7489ab'), top = new THREE.Color('#fffaf1'), mid = new THREE.Color('#d9e2ef');
+const crease = new THREE.Color('#5d7298'), top = new THREE.Color('#fffaf1'), mid = new THREE.Color('#d9e2ef');
 
 // Shared cloud material: vertex colours carry height/crease shading, lights do the rest.
 export const cloudMat = new THREE.MeshStandardMaterial({
