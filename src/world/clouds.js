@@ -14,7 +14,7 @@ export const cloudMat = new THREE.MeshStandardMaterial({
 const shade = (c, t) => (t < 0.5 ? c.copy(crease).lerp(mid, t * 2) : c.copy(mid).lerp(top, (t - 0.5) * 2));
 
 // Billow height field: |noise| gives rounded tops and sharp creases.
-function cloudHeight(x, z) {
+export function cloudHeight(x, z) {
   const n1 = Math.abs(noise.noise(x * 0.0024, z * 0.0024, 3.1));
   const n2 = Math.abs(noise.noise(x * 0.0075, z * 0.0075, 7.7));
   const n3 = Math.abs(noise.noise(x * 0.02, z * 0.02, 1.3));

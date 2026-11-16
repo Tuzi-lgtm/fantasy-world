@@ -6,6 +6,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createCloudSea } from './world/clouds.js';
 import { createSkyRealm } from './world/skyrealm.js';
+import { CloudPass } from './world/volumeClouds.js';
 import { loadAssets } from './world/assets.js';
 import { SPAWN, HERO } from './world/layout.js';
 import { Player } from './player/player.js';
@@ -67,14 +68,17 @@ scene.add(sun, sun.target);
 scene.add(new THREE.HemisphereLight('#bcd6ff', '#8a96aa', 0.4));
 
 // ---------- World ----------
-scene.add(createCloudSea());
-const realm = createSkyRealm();
+// Volumetric clouds by default; ?clouds=mesh keeps the old opaque mesh clouds.
+const MESH_CLOUDS = new URLSearchParams(location.search).get('clouds') === 'mesh';
+if (MESH_CLOUDS) scene.add(createCloudSea());
+const realm = createSkyRealm({ meshClouds: MESH_CLOUDS });
 scene.add(realm);
 loadAssets(scene);
 
 // ---------- Post ----------
 const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
+const clouds = MESH_CLOUDS ? null : new CloudPass(scene, camera, { puffs: realm.userData.puffs, sunDir, sunColor: sun.color, fog: scene.fog });
+composer.addPass(clouds ?? new RenderPass(scene, camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.1, 0.4, 0.95));
 composer.addPass(new OutputPass());
 
@@ -114,6 +118,7 @@ renderer.setAnimationLoop(() => {
 
   dome.position.copy(camera.position);
   realm.userData.update?.(t, dt);
+  clouds?.update(t);
   composer.render();
 
   frames++; fpsTime += dt;
@@ -123,4 +128,4 @@ renderer.setAnimationLoop(() => {
   }
 });
 
-window.__world = { scene, camera, player, renderer, composer, dome };
+window.__world = { scene, camera, player, renderer, composer, dome, clouds };

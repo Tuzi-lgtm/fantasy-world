@@ -181,7 +181,7 @@ function createForest() {
 }
 
 // ---------------------------------------------------------------------------
-export function createSkyRealm() {
+export function createSkyRealm({ meshClouds = false } = {}) {
   const kit = new Kit(), rocks = [];
   const group = new THREE.Group();
 
@@ -284,7 +284,7 @@ export function createSkyRealm() {
   const ftex = fallTexture(), falls = [];
   for (const f of FALLS) {
     const t = ftex.clone(); t.needsUpdate = true; t.repeat.set(f.w / 60, 4);
-    const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, opacity: 0.9, color: '#f4f8ff', fog: true });
+    const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: true, opacity: 0.9, color: '#f4f8ff', fog: true });
     const top = CLIFF.top * 0.85, mesh = new THREE.Mesh(new THREE.PlaneGeometry(f.w, top + 40), m);
     mesh.position.set(f.x, top / 2 - 20, f.z);
     falls.push(t); group.add(mesh);
@@ -300,19 +300,19 @@ export function createSkyRealm() {
     const sx = Math.random() < 0.5 ? -1 : 1;
     puffs.push({ x: sx * rand(90, 480), y: rand(-75, -40), z: rand(-380, -1250), r: rand(60, 110) });
   }
-  group.add(createCloudPuffs(puffs));
-
-  const mist = createMist([
+  // Volumetric mode bakes the towers into the cloud volume; mesh mode builds them here.
+  group.userData.puffs = puffs;
+  const mist = !meshClouds ? null : createMist([
     ...LEVELS.map(L => ({ x: rand(-150, 150), y: L.top - 30, z: L.z1 + 20, s: 700, o: 0.5 })),
     ...FALLS.map(f => ({ x: f.x, y: 120, z: f.z + 80, s: 600, o: 0.8 })),
     ...PILLARS.map(p => ({ x: p.x, y: 40, z: p.z + 80, s: 500, o: 0.55 })),
   ]);
-  group.add(mist);
+  if (meshClouds) group.add(createCloudPuffs(puffs), mist);
   group.add(createForest());
 
   group.userData.update = (t, dt) => {
     for (const f of falls) f.offset.y += dt * 0.35;
-    mist.userData.update(t);
+    mist?.userData.update(t);
   };
   return group;
 }
