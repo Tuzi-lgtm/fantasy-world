@@ -58,12 +58,12 @@ scene.add(dome);
 const pmrem = new THREE.PMREMGenerator(renderer);
 const skyScene = new THREE.Scene(); skyScene.add(sky.clone());
 scene.environment = pmrem.fromScene(skyScene).texture;
-scene.environmentIntensity = 0.2;
+scene.environmentIntensity = 0.15;
 
 // Key light: its colour and strength; the lights themselves live in the shadow rig (see below).
-const SUN = { color: new THREE.Color('#ffe2bb'), intensity: 3.9 };
+const SUN = { color: new THREE.Color('#ffe2bb'), intensity: 10 };   // strong key: roughly 12:1 over the fill
 // Sky fill from above, bright bounce off the cloud sea from below (lights soffits and shaded facades).
-scene.add(new THREE.HemisphereLight('#a9c8ff', '#efe3d2', 0.7));
+scene.add(new THREE.HemisphereLight('#a9c8ff', '#efe3d2', 0.45));
 
 // ---------- World ----------
 // Volumetric clouds by default; ?clouds=mesh keeps the old opaque mesh clouds.

@@ -286,8 +286,8 @@ export class CloudPass extends Pass {
       uniforms: {
         tDepth: { value: this.sceneRT.depthTexture }, tHeight: { value: global.tex }, tLocal: { value: local.tex }, tTowers: { value: tw.tex }, tNoise: { value: bakeNoise() },
         projInv: { value: camera.projectionMatrixInverse }, camWorld: { value: camera.matrixWorld }, camPos: { value: new THREE.Vector3() },
-        sunDir: { value: sunDir }, sunCol: { value: sunColor.clone().lerp(new THREE.Color('#ffffff'), 0.5).multiplyScalar(25) }   /* cloud tops stay near white under the warm sun */,
-        ambTop: { value: lin('#9dbcf0', 0.62) }, ambBot: { value: lin('#506aa6', 0.26) },
+        sunDir: { value: sunDir }, sunCol: { value: sunColor.clone().lerp(new THREE.Color('#ffffff'), 0.5).multiplyScalar(32) }   /* cloud tops stay near white under the warm sun */,
+        ambTop: { value: lin('#9dbcf0', 0.5) }, ambBot: { value: lin('#506aa6', 0.2) },
         fogCol: { value: fog.color }, fogDensity: { value: fog.density * 0.5 },   // the sea stays readable out to the horizon
         time: { value: 0 }, yMax: { value: Math.max(global.max, local.max, tw.max) + 4 }, tMax: { value: camera.far * 0.95 },
       },
