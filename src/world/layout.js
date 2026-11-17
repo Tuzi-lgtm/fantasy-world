@@ -7,20 +7,38 @@
 // The concept's scale is not self-consistent, so the frame wins: a human-scale lookout
 // and balustrades in the foreground, mega-scale causeway, pillars and palace beyond.
 export const DECK = 60;                            // causeway walking height
-export const PAD_TOP = 108;                        // lookout terrace
-export const SPAWN = { x: 0, z: 10, y: PAD_TOP };
+export const TOP = 98;                             // lookout at the head of the grand stair
+export const SPAWN = { x: 0, z: 12, y: TOP };
 export const HERO = { pos: [0, 120, 29], look: [0, 103.62, -71] };   // title-screen camera (reference framing)
 export const VOID = -30;                           // fall below this -> respawn
 
-// Lookout: splayed plan, [z, half-width], narrowing to the neck at the stair top.
-export const PAD = { top: PAD_TOP, plan: [[30, 7.2], [16, 7.2], [9.6, 6.15], [7.3, 5.5], [0, 2.75]] };
-// Grand stair: fans out as it drops to the causeway.
-export const STAIR1 = { zHigh: 0, zLow: -146, yHigh: PAD_TOP, yLow: DECK, hwHigh: 2.75, hwLow: 13.75 };
-export const PLATFORM = { z0: -181, z1: -146, hw: 29.5, lowerHw: 34.5, lowerDrop: 7 };   // censer terrace
+// Grand stair: landings and shallow flights from the lookout down to the causeway.
+// Flared where the reference's balustrades splay out toward the camera, pinched at
+// the neck, widening again to the foot. hw = half-width.
+export const APPROACH = [
+  { zA: 45, zB: -1.2, yA: 98, yB: 98, hwA: 12.85, hwB: 12.85 },      // lookout
+  { zA: -1.2, zB: -14.2, yA: 98, yB: 94, hwA: 12.85, hwB: 12.9 },
+  { zA: -14.2, zB: -17.9, yA: 94, yB: 94, hwA: 12.9, hwB: 11.8 },    // flared landing
+  { zA: -17.9, zB: -22, yA: 94, yB: 94, hwA: 11.8, hwB: 9.96 },
+  { zA: -22, zB: -25.3, yA: 94, yB: 94, hwA: 9.96, hwB: 8.5 },
+  { zA: -25.3, zB: -51.1, yA: 94, yB: 86, hwA: 8.5, hwB: 8.06 },
+  { zA: -51.1, zB: -60, yA: 86, yB: 86, hwA: 8.06, hwB: 7.8 },       // neck landing
+  { zA: -60, zB: -146, yA: 86, yB: DECK, hwA: 7.8, hwB: 13.75 },
+];
 export const CW3 = 15.5, LANE = 10.5;              // half-widths: three-lane causeway, single lane
-export const LANDING2 = { z0: -402, z1: -377, hw: 21 };
-export const TERRACE_B = { z0: -600, hw: 27, drop: 6 };   // low side terraces past the second landing
-export const CAUSEWAY = { zEnd: -1280 };
+// Four terraces along the causeway (front = toward the camera). Gaps are the adjoining path half-widths.
+export const PLATFORMS = [
+  { z0: -181, z1: -146, hw: 29.5, front: 13.75, back: CW3, feature: 'censer' },
+  { z0: -440, z1: -385, hw: 30, front: CW3, back: LANE, feature: 'censer' },
+  { z0: -850, z1: -790, hw: 34, front: LANE, back: LANE, feature: 'statue' },
+  { z0: -1280, z1: -1220, hw: 38, front: LANE, back: 38, feature: 'lanterns' },
+];
+export const DECKS = [   // causeway runs between the terraces
+  { zA: PLATFORMS[0].z0, zB: PLATFORMS[1].z1, hw: CW3 },
+  { zA: PLATFORMS[1].z0, zB: PLATFORMS[2].z1, hw: LANE },
+  { zA: PLATFORMS[2].z0, zB: PLATFORMS[3].z1, hw: LANE },
+];
+export const TERRACE_B = { z0: -600, hw: 27, drop: 6 };   // low side terraces past the second platform
 
 // Dragon pillars: the first slots for hand-made hero assets.
 export const PILLARS = [{ x: -183, z: -441 }, { x: 186, z: -441 }].map(p => ({
@@ -96,23 +114,21 @@ const railRect = (hw, z0, z1, top, { front = 0, back = 0 } = {}) => {
   }
 };
 
-for (let i = 0; i + 1 < PAD.plan.length; i++) taper(PAD.plan[i][0], PAD.plan[i][1], PAD.plan[i + 1][0], PAD.plan[i + 1][1], PAD.top);
-railBox(-PAD.plan[0][1], PAD.plan[0][1], PAD.plan[0][0] - 0.5, PAD.plan[0][0] + 1, PAD.top);
-taper(STAIR1.zHigh, STAIR1.hwHigh, STAIR1.zLow, STAIR1.hwLow, 0, { ramp: STAIR1 });
-box(-PLATFORM.hw, PLATFORM.hw, PLATFORM.z0, PLATFORM.z1, DECK);
-railRect(PLATFORM.hw, PLATFORM.z0, PLATFORM.z1, DECK, { front: STAIR1.hwLow, back: CW3 });
-box(-3, 3, (PLATFORM.z0 + PLATFORM.z1) / 2 - 3, (PLATFORM.z0 + PLATFORM.z1) / 2 + 3, DECK + 8);   // censer
-box(-CW3, CW3, LANDING2.z1, PLATFORM.z0, DECK);
-for (const s of [-1, 1]) railBox(s * CW3, s * (CW3 + 1.2), LANDING2.z1, PLATFORM.z0, DECK);
-box(-LANDING2.hw, LANDING2.hw, LANDING2.z0, LANDING2.z1, DECK);
-railRect(LANDING2.hw, LANDING2.z0, LANDING2.z1, DECK, { front: CW3, back: LANE });
-box(-2.5, 2.5, (LANDING2.z0 + LANDING2.z1) / 2 - 2.5, (LANDING2.z0 + LANDING2.z1) / 2 + 2.5, DECK + 6);
-box(-LANE, LANE, CAUSEWAY.zEnd, LANDING2.z0, DECK);
-for (const s of [-1, 1]) railBox(s * LANE, s * (LANE + 1.2), CAUSEWAY.zEnd, LANDING2.z0, DECK);
+for (const g of APPROACH) taper(g.zA, g.hwA, g.zB, g.hwB, g.yA, g.yA === g.yB ? {} : { ramp: { zHigh: g.zA, zLow: g.zB, yHigh: g.yA, yLow: g.yB } });
+railBox(-APPROACH[0].hwA, APPROACH[0].hwA, APPROACH[0].zA - 0.5, APPROACH[0].zA + 1, TOP);
+for (const P of PLATFORMS) {
+  box(-P.hw, P.hw, P.z0, P.z1, DECK);
+  railRect(P.hw, P.z0, P.z1, DECK, { front: P.front, back: P.back });
+  if (P.feature !== 'lanterns') box(-3, 3, (P.z0 + P.z1) / 2 - 3, (P.z0 + P.z1) / 2 + 3, DECK + 8);
+}
+for (const D of DECKS) {
+  box(-D.hw, D.hw, D.zB, D.zA, DECK);
+  for (const s of [-1, 1]) railBox(s * D.hw, s * (D.hw + 1.2), D.zB, D.zA, DECK);
+}
 
 for (const [i, L] of LEVELS.entries()) {
   box(-L.hw, L.hw, L.z0, L.z1, L.top);
-  railRect(L.hw, L.z0, L.z1, L.top, { front: i ? 15.6 : LANE, back: i < LEVELS.length - 1 ? 15.6 : 0 });
+  railRect(L.hw, L.z0, L.z1, L.top, { front: i ? 15.6 : PLATFORMS[3].hw, back: i < LEVELS.length - 1 ? 15.6 : 0 });
 }
 for (const h of HALLS) {
   const L = LEVELS[h.level], m = h.kind === 'block' ? 3 : 6;
