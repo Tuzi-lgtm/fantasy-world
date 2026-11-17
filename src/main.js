@@ -7,6 +7,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createCloudSea } from './world/clouds.js';
 import { createSkyRealm } from './world/skyrealm.js';
 import { CloudPass } from './world/volumeClouds.js';
+import { createSunShadows } from './world/shadows.js';
 import { loadAssets } from './world/assets.js';
 import { SPAWN, HERO } from './world/layout.js';
 import { Player } from './player/player.js';
@@ -59,13 +60,8 @@ const skyScene = new THREE.Scene(); skyScene.add(sky.clone());
 scene.environment = pmrem.fromScene(skyScene).texture;
 scene.environmentIntensity = 0.2;
 
-const sun = new THREE.DirectionalLight('#ffe2bb', 3.9);
-sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096);
-Object.assign(sun.shadow.camera, { left: -320, right: 320, top: 320, bottom: -320, near: 1, far: 2600 });
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.15;
-scene.add(sun, sun.target);
+// Key light: its colour and strength; the lights themselves live in the shadow rig (see below).
+const SUN = { color: new THREE.Color('#ffe2bb'), intensity: 3.9 };
 // Sky fill from above, bright bounce off the cloud sea from below (lights soffits and shaded facades).
 scene.add(new THREE.HemisphereLight('#a9c8ff', '#efe3d2', 0.7));
 
@@ -75,11 +71,14 @@ const MESH_CLOUDS = new URLSearchParams(location.search).get('clouds') === 'mesh
 if (MESH_CLOUDS) scene.add(createCloudSea());
 const realm = createSkyRealm({ meshClouds: MESH_CLOUDS });
 scene.add(realm);
-loadAssets(scene);
+// Sun shadows across the whole realm (?shadows=low halves the map sizes).
+const shadows = createSunShadows(scene, camera, { sunDir, ...SUN, quality: new URLSearchParams(location.search).get('shadows') === 'low' ? 0.5 : 1 });
+shadows.setup(scene);
+loadAssets(scene, obj => shadows.setup(obj));
 
 // ---------- Post ----------
 const composer = new EffectComposer(renderer);
-const clouds = MESH_CLOUDS ? null : new CloudPass(scene, camera, { puffs: realm.userData.puffs, sunDir, sunColor: sun.color, fog: scene.fog });
+const clouds = MESH_CLOUDS ? null : new CloudPass(scene, camera, { puffs: realm.userData.puffs, sunDir, sunColor: SUN.color, fog: scene.fog });
 composer.addPass(clouds ?? new RenderPass(scene, camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.1, 0.4, 0.95));
 composer.addPass(new OutputPass());
@@ -107,16 +106,12 @@ addEventListener('resize', () => {
 // ---------- Loop ----------
 const clock = new THREE.Clock();
 let frames = 0, fpsTime = 0;
-const shadowCenter = new THREE.Vector3();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   player.update(dt);
 
-  // Shadow frustum sits a little ahead of the camera, where the eye looks.
-  camera.getWorldDirection(shadowCenter).setY(0).normalize().multiplyScalar(230).add(camera.position);
-  sun.target.position.copy(shadowCenter);
-  sun.position.copy(shadowCenter).addScaledVector(sunDir, 1100);
+  shadows.update(camera.position);
 
   dome.position.copy(camera.position);
   realm.userData.update?.(t, dt);
@@ -130,4 +125,4 @@ renderer.setAnimationLoop(() => {
   }
 });
 
-window.__world = { scene, camera, player, renderer, composer, dome, clouds };
+window.__world = { scene, camera, player, renderer, composer, dome, clouds, shadows };

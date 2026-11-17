@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { cloudHeight } from './clouds.js';
 
 // Raymarched cloud sea. The scene is rendered with depth, the cloud volume is marched
@@ -244,23 +245,26 @@ void main() {
 const composite = /* glsl */`
 #include <packing>
 varying vec2 vUv;
-uniform sampler2D tScene, tCloud, tDepth;
+uniform sampler2D tScene, tCloud, tDepth, tAO;
 uniform vec2 cloudRes;
-uniform float near, far;
+uniform float near, far, aoStrength;
 float lin(vec2 uv) { return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, near, far); }
 void main() {
   vec4 sc = texture2D(tScene, vUv);
   float zc = lin(vUv);
   vec2 p = vUv * cloudRes - 0.5, f = fract(p), b = (floor(p) + 0.5) / cloudRes;
-  vec4 acc = vec4(0.0); float ws = 0.0;
+  vec4 acc = vec4(0.0); float ws = 0.0, ao = 0.0;
   for (int k = 0; k < 4; k++) {
     vec2 o = vec2(float(k - (k / 2) * 2), float(k / 2));
     vec2 uv = b + o / cloudRes;
     float wb = mix(1.0 - f.x, f.x, o.x) * mix(1.0 - f.y, f.y, o.y);
     float w = wb * (exp(-abs(lin(uv) - zc) / (0.03 * zc)) + 1e-3);
-    acc += texture2D(tCloud, uv) * w; ws += w;
+    acc += texture2D(tCloud, uv) * w; ao += texture2D(tAO, uv).r * w; ws += w;
   }
   vec4 c = acc / max(ws, 1e-6);
+  ao /= max(ws, 1e-6);
+  if (aoStrength < 0.0) { gl_FragColor = vec4(vec3(ao), 1.0); return; }   // debug: occlusion only
+  sc.rgb *= mix(1.0, ao, aoStrength);   // ambient occlusion on the scene, under the cloud
   gl_FragColor = vec4(sc.rgb * c.a + c.rgb, 1.0);
 }`;
 
@@ -288,11 +292,26 @@ export class CloudPass extends Pass {
         time: { value: 0 }, yMax: { value: Math.max(global.max, local.max, tw.max) + 4 }, tMax: { value: camera.far * 0.95 },
       },
     });
+    // Ambient occlusion from the scene depth (normals rebuilt from depth, so no extra geometry pass),
+    // at the cloud buffer's resolution. The radius is 5 m near the camera and never less than
+    // ~16 buffer pixels, so distant eaves and terraces still occlude.
+    const ao = this.ao = new GTAOPass(scene, camera, 4, 4);
+    ao.setGBuffer(this.sceneRT.depthTexture, undefined);
+    ao.output = GTAOPass.OUTPUT.Off;
+    ao.updateGtaoMaterial({ radius: 0.16, thickness: 1, distanceExponent: 1.5, distanceFallOff: 1, scale: 1.25, samples: 16, screenSpaceRadius: true });
+    const swap = (src, a, b) => { if (!src.includes(a)) throw new Error('GTAO shader changed: ' + a); return src.split(a).join(b); };
+    let fs = ao.gtaoMaterial.fragmentShader;
+    fs = swap(fs, 'radiusToUse *= radiusScale;', 'radiusToUse = max(5.0, radius * radiusScale);');
+    fs = swap(fs, 'distanceFalloffToUse *= radiusScale;', 'distanceFalloffToUse = thickness * radiusToUse;');
+    fs = swap(fs, 'abs(viewDelta.z) < thickness', 'abs(viewDelta.z) < distanceFalloffToUse');
+    ao.gtaoMaterial.fragmentShader = fs;
+
     this.compMat = new THREE.ShaderMaterial({
       vertexShader: vert, fragmentShader: composite, depthTest: false, depthWrite: false,
       uniforms: {
         tScene: { value: this.sceneRT.texture }, tCloud: { value: this.cloudRT.texture }, tDepth: { value: this.sceneRT.depthTexture },
         cloudRes: { value: new THREE.Vector2() }, near: { value: camera.near }, far: { value: camera.far },
+        tAO: { value: ao.pdRenderTarget.texture }, aoStrength: { value: 1 },
       },
     });
     this.quad = new FullScreenQuad(this.marchMat);
@@ -303,6 +322,7 @@ export class CloudPass extends Pass {
     const cw = Math.max(1, Math.round(w * CLOUD_QUALITY.scale)), ch = Math.max(1, Math.round(h * CLOUD_QUALITY.scale));
     this.cloudRT.setSize(cw, ch);
     this.compMat.uniforms.cloudRes.value.set(cw, ch);
+    this.ao.setSize(cw, ch);
   }
 
   update(t) { this.marchMat.uniforms.time.value = t; }
@@ -311,6 +331,7 @@ export class CloudPass extends Pass {
     renderer.setRenderTarget(this.sceneRT);
     renderer.clear();
     renderer.render(this.scene, this.camera);
+    this.ao.render(renderer);
 
     this.marchMat.uniforms.camPos.value.setFromMatrixPosition(this.camera.matrixWorld);
     this.quad.material = this.marchMat;

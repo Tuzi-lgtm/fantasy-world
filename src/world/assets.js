@@ -6,7 +6,7 @@ import { DECK } from './layout.js';
 // Loads your own assets listed in public/models/manifest.json.
 // Each entry: { "file": "castle.glb", "position": [x, z], "scale": 1, "rotationY": 0, "yOffset": 0 }
 // Y is snapped to the terrain unless "y" is given explicitly.
-export async function loadAssets(scene) {
+export async function loadAssets(scene, onLoad) {
   let manifest;
   try {
     const res = await fetch(`${import.meta.env.BASE_URL}models/manifest.json`);
@@ -27,6 +27,7 @@ export async function loadAssets(scene) {
       obj.scale.setScalar(e.scale ?? 1);
       obj.rotation.y = e.rotationY ?? 0;
       obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      onLoad?.(obj);   // e.g. hook the asset's materials into the shadow rig
       scene.add(obj);
     } catch (err) {
       console.warn(`Failed to load ${e.file}`, err);
