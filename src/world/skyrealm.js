@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Kit, COL, paint, grandHall, tieredBlock, pagoda, tower, rail, taperSlab, hexa, tubeR } from './architecture.js';
 import { createCloudPuffs, createMist } from './clouds.js';
 import {
-  DECK, TOP, APPROACH, PLATFORMS, DECKS, CW3, LANE, TERRACE_B, PILLARS, LEVELS, HALLS, PALACE_STAIRS,
+  DECK, TOP, APPROACH, PATH0, PLATFORMS, DECKS, CW3, LANE, TERRACE_B, PILLARS, LEVELS, HALLS, PALACE_STAIRS,
   PEDESTAL_TOWERS, FLANK_TOWERS, PAGODA_SPIRES, CLIFF, FALLS, CRAGS, setColliderTop,
 } from './layout.js';
 
@@ -241,26 +241,25 @@ export function createSkyRealm({ meshClouds = false } = {}) {
     for (const k of [-0.34, 0.34]) taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: 0.25, hwB: 0.25, cx: g.hwA * k, yA0: y, yA1: y + 0.06, color: COL.marbleDark });
     for (const s of [-1, 1]) rail(kit, V(s * (g.hwA + 0.6), y, g.zA), V(s * (g.hwB + 0.6), y, g.zB));
     if (g === APPROACH[0]) continue;
-    kit.box(g.hwA * 2, 0.06, g.zA - g.zB, 0, y + 0.03, (g.zA + g.zB) / 2, COL.marbleDark);   // each landing is banded and
-    for (const s of [-1, 1]) {                                                              // flanked by newel blocks with lanterns
-      kit.box(3, 3.2, 3, s * (g.hwA + 0.6), y + 1.6, (g.zA + g.zB) / 2, COL.marble);
-      kit.box(3.4, 0.5, 3.4, s * (g.hwA + 0.6), y + 3.2, (g.zA + g.zB) / 2, COL.marbleDark);
-      lantern(kit, s * (g.hwA + 0.6), y + 3.45, (g.zA + g.zB) / 2, 0.9);
-    }
+    const prev = APPROACH[APPROACH.indexOf(g) - 1];   // rail steps in from the chunk above
+    for (const s of [-1, 1]) rail(kit, V(s * (prev.hwB + 0.6), y, g.zA), V(s * (g.hwA + 0.6), y, g.zA));
+    kit.box(g.hwA * 2, 0.06, g.zA - g.zB, 0, y + 0.03, (g.zA + g.zB) / 2, COL.marbleDark);   // each landing is banded
   }
+  const A9 = APPROACH[APPROACH.length - 1];           // at the foot the rails return inward to the path
+  for (const s of [-1, 1]) rail(kit, V(s * (A9.hwB + 0.6), DECK, A9.zB), V(s * (PATH0 + 0.6), DECK, A9.zB));
   const A0 = APPROACH[0];
   rail(kit, V(-A0.hwA - 0.6, TOP, A0.zA), V(A0.hwA + 0.6, TOP, A0.zA));
   for (let z = A0.zA - 8; z > A0.zB; z -= 8) kit.box(A0.hwA * 2, 0.06, 0.3, 0, TOP + 0.03, z, COL.marbleDark);   // paving joints
-  for (const [rz, ry, r0, r1] of [[16, 80, 50, 26], [-40, 68, 38, 17], [-82, 54, 30, 12]])
+  for (const [rz, ry, r0, r1] of [[16, 82, 50, 26], [-40, 68, 38, 17], [-82, 54, 30, 12], [-108, 46, 26, 10]])
     rocks.push(rock(0, rz, -140, ry, r0, r1, { moss: 1.15, rough: 0.4 }));
   rocks.push(rock(-47, -56, -110, 70, 44, 22, { moss: 1.15, rough: 0.45 }));
   for (const [bx, by, bz, rx, ry, rz] of [   // craggy outcrop under the pine and beside the stair
-    [-48.7, 70.3, -60.2, 17.5, 12.5, 15], [-33.7, 73, -35.2, 12.5, 13.8, 12.5], [-65, 64, -35.2, 17.5, 12.5, 17.5], [-30.5, 76, -10.2, 11.3, 13.5, 12.5],
-    [-45, 69, -12.7, 15, 12.5, 15], [-36, 61.5, -85, 15, 12.5, 12.5], [-28, 70, -57.7, 8.8, 10, 8.8], [-26, 80, 26, 8, 9.5, 8],
-    [24.5, 75.5, -41.5, 7, 9, 7], [25.5, 80.5, -8, 8, 9.5, 8], [25, 80.5, 22, 8, 9.5, 8], [27, 70, -66, 9, 9, 8]])
+    [-48.7, 70.3, -60.2, 17.5, 12.5, 15], [-35.5, 73, -35.2, 12.5, 13.8, 12.5], [-65, 64, -35.2, 17.5, 12.5, 17.5], [-33.5, 77, -10.2, 11.3, 13.5, 12.5],
+    [-45, 69, -12.7, 15, 12.5, 15], [-36, 61.5, -85, 15, 12.5, 12.5], [-31, 70, -57.7, 8.8, 10, 8.8], [-29, 81.5, 26, 8, 9.5, 8],
+    [27.5, 75.5, -41.5, 7, 9, 7], [28.5, 82, -8, 8, 9.5, 8], [28.5, 82, 22, 8, 9.5, 8], [27, 70, -66, 9, 9, 8]])
     rocks.push(boulder(bx, by, bz, rx, ry, rz));
   pine(kit, -49.2, 79.5, -59.4, 2.35);
-  for (const [sx, sy, sz, n] of [[-33.7, 86.5, -35.2, 9], [-63, 76, -35, 9], [24.5, 84.2, -41.5, 7], [25.5, 89.7, -8, 7], [-44, 81, -12, 9], [-28, 79.6, -57, 6], [-30.5, 89.2, -10, 7], [25, 89.7, 22, 6], [-36, 73.5, -85, 7]])
+  for (const [sx, sy, sz, n] of [[-35.5, 86.5, -35.2, 9], [-63, 76, -35, 9], [27.5, 84.2, -41.5, 7], [28.5, 91.2, -8, 7], [-44, 81, -12, 9], [-28, 79.6, -57, 6], [-33.5, 90.2, -10, 7], [28.5, 91.2, 22, 6], [-36, 73.5, -85, 7]])
     for (let i = 0; i < n; i++) {   // shrubs on the outcrop
       const s = rand(1, 2.4);
       kit.add('paint', paint(new THREE.IcosahedronGeometry(s, 1).scale(1.3, 0.75, 1.1).translate(sx + rand(-5, 5), sy + s * 0.2, sz + rand(-5, 5)), i % 2 ? '#3d5a30' : '#2f4a2a'));
@@ -281,11 +280,6 @@ export function createSkyRealm({ meshClouds = false } = {}) {
     railRect(kit, -lw + 0.5, lw - 0.5, P.z0 - 4.5, P.z1 + 4.5, ly, { front: [[-P.hw, P.hw]], back: [[-P.hw, P.hw]] });
     for (const dx of [-4.2, 4.2]) kit.box(0.5, 0.06, pd, dx, DECK + 0.03, pz, COL.marbleDark);
     for (const dz of [-pd / 2 + 2, pd / 2 - 2]) kit.box(P.hw * 2 - 2, 0.06, 0.5, 0, DECK + 0.03, pz + dz, COL.marbleDark);
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {   // corner blocks carrying lanterns
-      const cx = sx * (P.hw - 3.4), cz = pz + sz * (pd / 2 - 3.4);
-      kit.box(4.4, 2.6, 4.4, cx, DECK + 1.3, cz, COL.marble);
-      lantern(kit, cx, DECK + 2.6, cz, P.feature === 'lanterns' ? 1.6 : 1.1);
-    }
     if (P.feature === 'censer') censer(kit, 0, DECK, pz, 0.9);
     if (P.feature === 'statue') {
       kit.box(7, 2, 7, 0, DECK + 1, pz, COL.marbleDark); kit.box(4.6, 1.8, 4.6, 0, DECK + 2.9, pz, COL.marble);
