@@ -293,15 +293,16 @@ export class CloudPass extends Pass {
       },
     });
     // Ambient occlusion from the scene depth (normals rebuilt from depth, so no extra geometry pass),
-    // at the cloud buffer's resolution. The radius is 5 m near the camera and never less than
-    // ~16 buffer pixels, so distant eaves and terraces still occlude.
+    // at the cloud buffer's resolution. The radius is ~2 m near the camera and grows with distance
+    // (20 buffer pixels, up to 45 m), so distant eaves and terraces still occlude.
     const ao = this.ao = new GTAOPass(scene, camera, 4, 4);
     ao.setGBuffer(this.sceneRT.depthTexture, undefined);
     ao.output = GTAOPass.OUTPUT.Off;
-    ao.updateGtaoMaterial({ radius: 0.16, thickness: 1, distanceExponent: 1.5, distanceFallOff: 1, scale: 1.25, samples: 16, screenSpaceRadius: true });
+    ao.updateGtaoMaterial({ radius: 0.2, thickness: 2, distanceExponent: 1.3, distanceFallOff: 0.25, scale: 2.2, samples: 24, screenSpaceRadius: true });
+    ao.updatePdMaterial({ radius: 12, rings: 2, samples: 16, lumaPhi: 10, depthPhi: 2, normalPhi: 3 });
     const swap = (src, a, b) => { if (!src.includes(a)) throw new Error('GTAO shader changed: ' + a); return src.split(a).join(b); };
     let fs = ao.gtaoMaterial.fragmentShader;
-    fs = swap(fs, 'radiusToUse *= radiusScale;', 'radiusToUse = max(5.0, radius * radiusScale);');
+    fs = swap(fs, 'radiusToUse *= radiusScale;', 'radiusToUse = clamp(radius * radiusScale, 1.8, 45.0);');
     fs = swap(fs, 'distanceFalloffToUse *= radiusScale;', 'distanceFalloffToUse = thickness * radiusToUse;');
     fs = swap(fs, 'abs(viewDelta.z) < thickness', 'abs(viewDelta.z) < distanceFalloffToUse');
     ao.gtaoMaterial.fragmentShader = fs;
@@ -311,7 +312,7 @@ export class CloudPass extends Pass {
       uniforms: {
         tScene: { value: this.sceneRT.texture }, tCloud: { value: this.cloudRT.texture }, tDepth: { value: this.sceneRT.depthTexture },
         cloudRes: { value: new THREE.Vector2() }, near: { value: camera.near }, far: { value: camera.far },
-        tAO: { value: ao.pdRenderTarget.texture }, aoStrength: { value: 1 },
+        tAO: { value: ao.pdRenderTarget.texture }, aoStrength: { value: 0.85 },
       },
     });
     this.quad = new FullScreenQuad(this.marchMat);

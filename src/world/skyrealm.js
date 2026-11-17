@@ -180,6 +180,9 @@ function dragonPillar(kit, p) {
 function fallTexture() {
   const c = document.createElement('canvas'); c.width = 256; c.height = 512;
   const g = c.getContext('2d');
+  const mist = g.createLinearGradient(0, 0, 256, 0);   // misty body, so gaps between streaks aren't bare shaded rock
+  [[0, 0], [0.25, 0.5], [0.5, 0.62], [0.75, 0.5], [1, 0]].forEach(([o, a]) => mist.addColorStop(o, `rgba(255,255,255,${a})`));
+  g.fillStyle = mist; g.fillRect(0, 0, 256, 512);
   for (let i = 0; i < 520; i++) {
     const u = (rnd() + rnd() + rnd()) / 3, x = u * 256, w = rand(1, 6), y = rnd() * 512, h = rand(80, 360);
     g.fillStyle = `rgba(255,255,255,${rand(0.25, 0.8) * (1 - Math.abs(u - 0.5) * 1.6)})`;
@@ -389,7 +392,7 @@ export function createSkyRealm({ meshClouds = false } = {}) {
 
   // Waterfalls: a broad veil down the massif
   const ftex = fallTexture(), falls = [];
-  for (const f of FALLS) for (const [k, dz, op] of [[1, 0, 0.95], [0.6, 6, 0.8]]) {   // two layered veils each
+  for (const f of FALLS) for (const [k, dz, op] of [[1, 0, 0.95], [0.6, 0.6, 0.8]]) {   // two layered veils each
     const t = ftex.clone(); t.needsUpdate = true; t.repeat.set(1, (f.y1 - f.y0) / 260); t.offset.y = rnd();
     const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.03, opacity: op, color: new THREE.Color('#f6f9ff').multiplyScalar(1.5), fog: true });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(f.w * 1.5 * k, f.y1 - f.y0), m);
