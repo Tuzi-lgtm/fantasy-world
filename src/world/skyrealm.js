@@ -232,18 +232,17 @@ export function createSkyRealm({ meshClouds = false } = {}) {
   const grove = (x, z, y, r, n, k0, k1) => { for (let i = 0; i < n; i++) { const a = rand(0, 6.283), d = r * Math.sqrt(rnd()); trees.push([x + Math.cos(a) * d, y, z + Math.sin(a) * d, rand(k0, k1)]); } };
 
   // ---- Grand stair from the lookout: four big flights on a rock spur, pine on the left ----
-  for (const g of APPROACH) {
+  for (const [i, g] of APPROACH.entries()) {
+    const prev = APPROACH[i - 1];
+    if (prev && prev.hwB !== g.hwA)   // balustrade steps in or out between segments
+      for (const s of [-1, 1]) rail(kit, V(s * (prev.hwB + 0.6), g.yA, g.zA), V(s * (g.hwA + 0.6), g.yA, g.zA));
     if (g.yA !== g.yB) { stairs(kit, { zHigh: g.zA, zLow: g.zB, yHigh: g.yA, yLow: g.yB, hwHigh: g.hwA, hwLow: g.hwB, step: 0.5, body: 18 }); continue; }
     const y = g.yA;
     taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: g.hwA + 1.2, hwB: g.hwB + 1.2, yA0: y - 2.4, yA1: y });
     taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: g.hwA + 1.6, hwB: g.hwB + 1.6, yA0: y - 3.2, yA1: y - 2.4, color: COL.marbleDark });
     taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: g.hwA + 0.4, hwB: g.hwB + 0.4, yA0: y - 18, yA1: y - 3.2 });
-    for (const k of [-0.34, 0.34]) taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: 0.25, hwB: 0.25, cx: g.hwA * k, yA0: y, yA1: y + 0.06, color: COL.marbleDark });
+    for (const k of [-0.34, 0.34]) taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: 0.25, hwB: 0.25, cx: (g.hwA + g.hwB) / 2 * k, yA0: y, yA1: y + 0.06, color: COL.marbleDark });
     for (const s of [-1, 1]) rail(kit, V(s * (g.hwA + 0.6), y, g.zA), V(s * (g.hwB + 0.6), y, g.zB));
-    if (g === APPROACH[0]) continue;
-    const prev = APPROACH[APPROACH.indexOf(g) - 1];   // rail steps in from the chunk above
-    for (const s of [-1, 1]) rail(kit, V(s * (prev.hwB + 0.6), y, g.zA), V(s * (g.hwA + 0.6), y, g.zA));
-    kit.box(g.hwA * 2, 0.06, g.zA - g.zB, 0, y + 0.03, (g.zA + g.zB) / 2, COL.marbleDark);   // each landing is banded
   }
   const A9 = APPROACH[APPROACH.length - 1];           // at the foot the rails return inward to the path
   for (const s of [-1, 1]) rail(kit, V(s * (A9.hwB + 0.6), DECK, A9.zB), V(s * (PATH0 + 0.6), DECK, A9.zB));
