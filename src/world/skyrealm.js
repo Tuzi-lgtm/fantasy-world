@@ -202,8 +202,8 @@ function pine(kit, x, y, z, k = 1) {
   const pads = [[-7.4, 5.5, 2.8, 3.4], [-4, 5.9, 1.4, 3], [-8.6, 3.6, 4.2, 2.6], [-5, 3.4, 3.6, 2.4], [-3.2, 10.2, -1.2, 3.2], [-6.4, 8, 0.2, 2.8],
     [0.4, 8, 0.6, 3], [2.4, 10, -0.4, 3.2], [5.4, 10.4, -0.8, 3.4], [9.4, 7.5, 1.6, 3.2], [6.2, 7.8, 1.6, 2.8], [3.4, 11.8, -1, 2.2],
     [4.8, 4, 3.2, 2.6], [1.6, 5.6, 2.6, 2.2], [-1.4, 7, 2, 2.6], [8, 9.4, 0, 2.4]];
-  for (const [px, py, pz, r] of pads) for (let i = 0; i < 56; i++) {
-    const a = rand(0, 6.283), d = Math.sqrt(rnd()) * r * 0.86, s = rand(0.32, 0.7), lift = rand(-0.45, 0.5);
+  for (const [px, py, pz, r] of pads) for (let i = 0; i < 70; i++) {
+    const a = rand(0, 6.283), d = Math.sqrt(rnd()) * r * 0.88, s = rand(0.26, 0.56), lift = rand(-0.45, 0.5);
     const g = new THREE.IcosahedronGeometry(s * k, 1).scale(1.6, 0.5, 1.4).rotateY(a)
       .translate(x + (px + Math.cos(a) * d) * k, y + (py + lift) * k, z + (pz + Math.sin(a) * d * 0.8) * k);
     kit.add('paint', paint(g, lift > 0.2 ? '#44613a' : i % 2 ? '#2d472b' : '#213820'));
@@ -231,32 +231,39 @@ export function createSkyRealm({ meshClouds = false } = {}) {
   const group = new THREE.Group();
   const grove = (x, z, y, r, n, k0, k1) => { for (let i = 0; i < n; i++) { const a = rand(0, 6.283), d = r * Math.sqrt(rnd()); trees.push([x + Math.cos(a) * d, y, z + Math.sin(a) * d, rand(k0, k1)]); } };
 
-  // ---- Grand stair from the lookout: landings and broad flights on a rock spur, pine on the left ----
+  // ---- Grand stair from the lookout: four big flights on a rock spur, pine on the left ----
   for (const g of APPROACH) {
-    if (g.yA !== g.yB) { stairs(kit, { zHigh: g.zA, zLow: g.zB, yHigh: g.yA, yLow: g.yB, hwHigh: g.hwA, hwLow: g.hwB, step: 0.4, body: 16 }); continue; }
+    if (g.yA !== g.yB) { stairs(kit, { zHigh: g.zA, zLow: g.zB, yHigh: g.yA, yLow: g.yB, hwHigh: g.hwA, hwLow: g.hwB, step: 0.5, body: 18 }); continue; }
     const y = g.yA;
     taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: g.hwA + 1.2, hwB: g.hwB + 1.2, yA0: y - 2.4, yA1: y });
     taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: g.hwA + 1.6, hwB: g.hwB + 1.6, yA0: y - 3.2, yA1: y - 2.4, color: COL.marbleDark });
-    taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: g.hwA + 0.4, hwB: g.hwB + 0.4, yA0: y - 16, yA1: y - 3.2 });
-    for (const k of [-0.34, 0.34]) taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: 0.25, hwB: 0.25, cx: (g.hwA + g.hwB) / 2 * k, yA0: y, yA1: y + 0.06, color: COL.marbleDark });
+    taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: g.hwA + 0.4, hwB: g.hwB + 0.4, yA0: y - 18, yA1: y - 3.2 });
+    for (const k of [-0.34, 0.34]) taperSlab(kit, { zA: g.zA, zB: g.zB, hwA: 0.25, hwB: 0.25, cx: g.hwA * k, yA0: y, yA1: y + 0.06, color: COL.marbleDark });
     for (const s of [-1, 1]) rail(kit, V(s * (g.hwA + 0.6), y, g.zA), V(s * (g.hwB + 0.6), y, g.zB));
+    if (g === APPROACH[0]) continue;
+    kit.box(g.hwA * 2, 0.06, g.zA - g.zB, 0, y + 0.03, (g.zA + g.zB) / 2, COL.marbleDark);   // each landing is banded and
+    for (const s of [-1, 1]) {                                                              // flanked by newel blocks with lanterns
+      kit.box(3, 3.2, 3, s * (g.hwA + 0.6), y + 1.6, (g.zA + g.zB) / 2, COL.marble);
+      kit.box(3.4, 0.5, 3.4, s * (g.hwA + 0.6), y + 3.2, (g.zA + g.zB) / 2, COL.marbleDark);
+      lantern(kit, s * (g.hwA + 0.6), y + 3.45, (g.zA + g.zB) / 2, 0.9);
+    }
   }
   const A0 = APPROACH[0];
   rail(kit, V(-A0.hwA - 0.6, TOP, A0.zA), V(A0.hwA + 0.6, TOP, A0.zA));
-  for (let z = A0.zA - 6; z > A0.zB; z -= 6) kit.box(A0.hwA * 2, 0.06, 0.3, 0, TOP + 0.03, z, COL.marbleDark);   // paving joints
-  for (const [rz, ry, r0, r1] of [[24, 94, 44, 21], [-12, 88, 36, 15], [-42, 79, 30, 10], [-78, 68, 26, 8]])
+  for (let z = A0.zA - 8; z > A0.zB; z -= 8) kit.box(A0.hwA * 2, 0.06, 0.3, 0, TOP + 0.03, z, COL.marbleDark);   // paving joints
+  for (const [rz, ry, r0, r1] of [[16, 80, 50, 26], [-40, 68, 38, 17], [-82, 54, 30, 12]])
     rocks.push(rock(0, rz, -140, ry, r0, r1, { moss: 1.15, rough: 0.4 }));
-  rocks.push(rock(-36, -28, -110, 84, 34, 15, { moss: 1.15, rough: 0.45 }));
+  rocks.push(rock(-47, -56, -110, 70, 44, 22, { moss: 1.15, rough: 0.45 }));
   for (const [bx, by, bz, rx, ry, rz] of [   // craggy outcrop under the pine and beside the stair
-    [-34.6, 83.9, -34.5, 12.6, 9, 10.8], [-23.8, 85.5, -16.5, 9, 9.9, 9], [-46.3, 79.4, -16.5, 12.6, 9, 12.6], [-22, 88, 1.5, 8.1, 9.6, 9],
-    [-31.9, 83, -0.3, 10.8, 9, 10.8], [-24.7, 77.6, -52.5, 10.8, 9, 9], [-17.5, 84, -32.7, 6.3, 7.2, 6.3], [-21, 89, 30, 8, 8.5, 8],
-    [17.8, 85.5, -27, 6, 8, 6], [21, 87, -6, 8, 9.5, 8], [20.5, 89, 14, 8, 8.5, 8], [21, 88.5, 34, 7, 8.5, 7]])
+    [-48.7, 70.3, -60.2, 17.5, 12.5, 15], [-33.7, 73, -35.2, 12.5, 13.8, 12.5], [-65, 64, -35.2, 17.5, 12.5, 17.5], [-30.5, 76, -10.2, 11.3, 13.5, 12.5],
+    [-45, 69, -12.7, 15, 12.5, 15], [-36, 61.5, -85, 15, 12.5, 12.5], [-28, 70, -57.7, 8.8, 10, 8.8], [-26, 80, 26, 8, 9.5, 8],
+    [24.5, 75.5, -41.5, 7, 9, 7], [25.5, 80.5, -8, 8, 9.5, 8], [25, 80.5, 22, 8, 9.5, 8], [27, 70, -66, 9, 9, 8]])
     rocks.push(boulder(bx, by, bz, rx, ry, rz));
-  pine(kit, -35, 91.5, -34, 1.7);
-  for (const [sx, sy, sz, n] of [[-23.8, 95, -16.5, 8], [-44, 88, -17, 8], [17.8, 93.2, -27, 6], [21, 96, -6, 7], [-31, 91.6, 0, 8], [-18, 91, -32, 5], [-22, 97.2, 2, 6], [20.5, 97.2, 14, 6]])
+  pine(kit, -49.2, 79.5, -59.4, 2.35);
+  for (const [sx, sy, sz, n] of [[-33.7, 86.5, -35.2, 9], [-63, 76, -35, 9], [24.5, 84.2, -41.5, 7], [25.5, 89.7, -8, 7], [-44, 81, -12, 9], [-28, 79.6, -57, 6], [-30.5, 89.2, -10, 7], [25, 89.7, 22, 6], [-36, 73.5, -85, 7]])
     for (let i = 0; i < n; i++) {   // shrubs on the outcrop
-      const s = rand(0.8, 1.8);
-      kit.add('paint', paint(new THREE.IcosahedronGeometry(s, 1).scale(1.3, 0.75, 1.1).translate(sx + rand(-3.6, 3.6), sy + s * 0.2, sz + rand(-3.6, 3.6)), i % 2 ? '#3d5a30' : '#2f4a2a'));
+      const s = rand(1, 2.4);
+      kit.add('paint', paint(new THREE.IcosahedronGeometry(s, 1).scale(1.3, 0.75, 1.1).translate(sx + rand(-5, 5), sy + s * 0.2, sz + rand(-5, 5)), i % 2 ? '#3d5a30' : '#2f4a2a'));
     }
 
   // ---- Four terraces along the causeway: upper tier at deck level on a wider lower tier sinking into the cloud ----

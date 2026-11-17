@@ -7,33 +7,31 @@
 // The concept's scale is not self-consistent, so the frame wins: a human-scale lookout
 // and balustrades in the foreground, mega-scale causeway, pillars and palace beyond.
 export const DECK = 60;                            // causeway walking height
-export const TOP = 98;                             // lookout at the head of the grand stair
+export const TOP = 90;                             // lookout at the head of the grand stair
 export const SPAWN = { x: 0, z: 12, y: TOP };
 export const HERO = { pos: [0, 120, 29], look: [0, 103.62, -71] };   // title-screen camera (reference framing)
 export const VOID = -30;                           // fall below this -> respawn
 
-// Grand stair: landings and shallow flights from the lookout down to the causeway.
-// Flared where the reference's balustrades splay out toward the camera, pinched at
-// the neck, widening again to the foot. hw = half-width.
-export const APPROACH = [
-  { zA: 45, zB: -1.2, yA: 98, yB: 98, hwA: 12.85, hwB: 12.85 },      // lookout
-  { zA: -1.2, zB: -14.2, yA: 98, yB: 94, hwA: 12.85, hwB: 12.9 },
-  { zA: -14.2, zB: -17.9, yA: 94, yB: 94, hwA: 12.9, hwB: 11.8 },    // flared landing
-  { zA: -17.9, zB: -22, yA: 94, yB: 94, hwA: 11.8, hwB: 9.96 },
-  { zA: -22, zB: -25.3, yA: 94, yB: 94, hwA: 9.96, hwB: 8.5 },
-  { zA: -25.3, zB: -51.1, yA: 94, yB: 86, hwA: 8.5, hwB: 8.06 },
-  { zA: -51.1, zB: -60, yA: 86, yB: 86, hwA: 8.06, hwB: 7.8 },       // neck landing
-  { zA: -60, zB: -146, yA: 86, yB: DECK, hwA: 7.8, hwB: 13.75 },
-];
 export const CW3 = 15.5, LANE = 10.5;              // half-widths: three-lane causeway, single lane
+// Grand stair: four big flights from the lookout down to the level causeway, as wide as
+// the causeway. The breaks sit on the reference's ledge lines, so each flight is longer
+// than the one above it (they look even from the lookout). A short landing heads each.
+const BREAK_Z = [-19.4, -32.6, -49.9, -77.1, -109.1], BREAK_Y = [TOP, 85.54, 79.7, 70.5, DECK];
+export const APPROACH = [{ zA: 45, zB: BREAK_Z[0], yA: TOP, yB: TOP, hwA: CW3, hwB: CW3 }];
+for (let i = 0; i < 4; i++) {
+  const zA = BREAK_Z[i], zB = BREAK_Z[i + 1], zL = i ? zA - (zA - zB) * 0.15 : zA;
+  if (i) APPROACH.push({ zA, zB: zL, yA: BREAK_Y[i], yB: BREAK_Y[i], hwA: CW3, hwB: CW3 });
+  APPROACH.push({ zA: zL, zB, yA: BREAK_Y[i], yB: BREAK_Y[i + 1], hwA: CW3, hwB: CW3 });
+}
 // Four terraces along the causeway (front = toward the camera). Gaps are the adjoining path half-widths.
 export const PLATFORMS = [
-  { z0: -181, z1: -146, hw: 29.5, front: 13.75, back: CW3, feature: 'censer' },
+  { z0: -181, z1: -146, hw: 29.5, front: CW3, back: CW3, feature: 'censer' },
   { z0: -440, z1: -385, hw: 30, front: CW3, back: LANE, feature: 'censer' },
   { z0: -850, z1: -790, hw: 34, front: LANE, back: LANE, feature: 'statue' },
   { z0: -1280, z1: -1220, hw: 38, front: LANE, back: 38, feature: 'lanterns' },
 ];
 export const DECKS = [   // causeway runs between the terraces
+  { zA: BREAK_Z[4], zB: PLATFORMS[0].z1, hw: CW3 },
   { zA: PLATFORMS[0].z0, zB: PLATFORMS[1].z1, hw: CW3 },
   { zA: PLATFORMS[1].z0, zB: PLATFORMS[2].z1, hw: LANE },
   { zA: PLATFORMS[2].z0, zB: PLATFORMS[3].z1, hw: LANE },

@@ -238,7 +238,7 @@ export function tubeR(curve, segs, radial, rFn, uvRep = [1, 1]) {
 // Human-scale marble balustrade between two base points (any direction, may slope):
 // capped posts, two rails and a solid carved panel between them.
 // ---------------------------------------------------------------------------
-export function rail(kit, a, b, { h = 1.5, sp = 1.8, color = COL.marble } = {}) {
+export function rail(kit, a, b, { h = 1.6, sp = 2, color = COL.marble } = {}) {
   const len = a.distanceTo(b); if (len < 0.5) return;
   const n = Math.max(1, Math.round(len / sp));
   for (let i = 0; i <= n; i++) {   // slim posts, closely spaced: the human-scale cue along every edge
