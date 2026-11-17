@@ -1,32 +1,42 @@
 import * as THREE from 'three';
 import { ImprovedNoise } from 'three/examples/jsm/math/ImprovedNoise.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Kit, COL, hall, pagoda, tower, rail, stackedHall } from './architecture.js';
+import { Kit, COL, paint, grandHall, tieredBlock, pagoda, tower, rail, taperSlab, hexa, tubeR } from './architecture.js';
 import { createCloudPuffs, createMist } from './clouds.js';
 import {
-  SPAWN, DECK, CW, PAD, STAIR1, CAUSEWAY, LANDINGS, PILLARS, LEVELS, PALACE_STAIRS,
-  PAGODA_SPIRES, CLIFF, FALLS, setColliderTop, FOREST_ROCKS, PEDESTAL_TOWERS, FLANK_TOWERS,
+  DECK, PAD, STAIR1, PLATFORM, CW3, LANE, LANDING2, TERRACE_B, CAUSEWAY, PILLARS, LEVELS, HALLS, PALACE_STAIRS,
+  PEDESTAL_TOWERS, FLANK_TOWERS, PAGODA_SPIRES, CLIFF, FALLS, CRAGS, setColliderTop,
 } from './layout.js';
 
 const noise = new ImprovedNoise();
-const rand = (a, b) => a + Math.random() * (b - a);
+// Seeded, so the composition (rocks, trees, cloud towers) is the same on every load.
+let seed = 20261117;
+const rnd = () => {
+  seed = seed + 0x6D2B79F5 | 0;
+  let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+  return ((t ^ t >>> 14) >>> 0) / 4294967296;
+};
+const rand = (a, b) => a + rnd() * (b - a);
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const UP = V(0, 1, 0), smooth = THREE.MathUtils.smoothstep;
 
 // ---------------------------------------------------------------------------
 // Rock: noise-displaced tapered column with vertex colours (moss toward the top).
 // ---------------------------------------------------------------------------
-const ROCK = new THREE.Color('#7a766d'), ROCK_DARK = new THREE.Color('#5a5852'), MOSS = new THREE.Color('#4d6338');
-function rock(x, z, y0, y1, r0, r1, { seed = Math.random() * 100, rough = 0.32, moss = 0.75 } = {}) {
-  const h = y1 - y0;
-  const g = new THREE.CylinderGeometry(r1, r0, h, 14, Math.max(6, Math.round(h / 12))).translate(0, h / 2, 0);
+const ROCK = new THREE.Color('#8b8a85'), ROCK_DARK = new THREE.Color('#5c5f62'), MOSS = new THREE.Color('#465c36');
+function rock(x, z, y0, y1, r0, r1, { rough = 0.32, moss = 0.75, seg = 14, dome = 0 } = {}) {
+  const h = y1 - y0, sd = rand(0, 100), f = 30 / Math.max(r0, r1, 30);   // lower frequency on big rocks
+  const g = new THREE.CylinderGeometry(r1, r0, h, seg, Math.max(6, Math.round(h / 12))).translate(0, h / 2, 0);
   g.deleteAttribute('uv');
   const p = g.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
   for (let i = 0; i < p.count; i++) {
     const px = p.getX(i), py = p.getY(i), pz = p.getZ(i);
-    const k = 1 + rough * noise.noise(px * 0.04 + seed, py * 0.025, pz * 0.04) + 0.12 * noise.noise(px * 0.15, py * 0.1 + seed, pz * 0.15);
-    p.setXYZ(i, px * k, py, pz * k);
-    const t = py / h, n = noise.noise(px * 0.08, py * 0.06, seed);
-    c.copy(ROCK_DARK).lerp(ROCK, 0.5 + 0.5 * n).lerp(MOSS, THREE.MathUtils.smoothstep(t + 0.25 * n, moss, 1));
+    const k = 1 + rough * noise.noise(px * 0.04 * f + sd, py * 0.025 * f, pz * 0.04 * f) + 0.12 * noise.noise(px * 0.15 * f, py * 0.1 * f + sd, pz * 0.15 * f);
+    const top = py > h - 0.01 ? 1 - Math.min((px * px + pz * pz) / (r1 * r1), 1) : 0;   // dome the cap
+    p.setXYZ(i, px * k, py + top * r1 * dome, pz * k);
+    const t = py / h, n = noise.noise(px * 0.08 * f, py * 0.06 * f, sd);
+    c.copy(ROCK_DARK).lerp(ROCK, 0.5 + 0.5 * n).lerp(MOSS, smooth(t + 0.25 * n, moss, 1));
     col.set([c.r, c.g, c.b], i * 3);
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -34,30 +44,40 @@ function rock(x, z, y0, y1, r0, r1, { seed = Math.random() * 100, rough = 0.32, 
   return g.translate(x, y0, z);
 }
 
-// ---------------------------------------------------------------------------
-// Stairs: solid-looking flight (steps on a sloped underside), along -Z.
-// ---------------------------------------------------------------------------
-function stairs(kit, { w, zHigh, zLow, yHigh, yLow }) {
-  const rise = yHigh - yLow, n = Math.round(rise / 0.3), run = (zLow - zHigh) / n;
-  for (let i = 0; i < n; i++) {
-    const top = yHigh - i * (rise / n);
-    kit.box(w, 4, run + 0.02, 0, top - 2, zHigh + (i + 0.5) * run, i % 2 ? COL.marble : COL.marbleDark);
+// Boulder: noise-displaced lump (foreground outcrop).
+function boulder(x, y, z, rx, ry, rz) {
+  const g = new THREE.IcosahedronGeometry(1, 3), p = g.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color(), sd = rand(0, 100);
+  g.deleteAttribute('uv');
+  for (let i = 0; i < p.count; i++) {
+    const px = p.getX(i), py = p.getY(i), pz = p.getZ(i);
+    const k = 1 + 0.3 * noise.noise(px * 1.3 + sd, py * 1.3, pz * 1.3) + 0.12 * noise.noise(px * 4 + sd, py * 4, pz * 4);
+    p.setXYZ(i, px * k * rx, py * k * ry, pz * k * rz);
+    c.copy(ROCK_DARK).lerp(ROCK, 0.5 + 0.5 * noise.noise(px * 3, py * 3 + sd, pz * 3)).lerp(MOSS, smooth(py * k + 0.3 * noise.noise(px * 2, sd, pz * 2), 0.55, 0.95) * 0.7);
+    col.set([c.r, c.g, c.b], i * 3);
   }
-  // stringers + rails
-  const L = Math.hypot(zLow - zHigh, rise), ang = Math.atan2(rise, zLow - zHigh);
-  for (const s of [-1, 1]) {
-    const g = new THREE.BoxGeometry(1.2, 4.5, L).rotateX(ang).translate(s * (w / 2 + 0.6), (yHigh + yLow) / 2 - 0.8, (zHigh + zLow) / 2);
-    kit.add('paint', paintGeo(g, COL.marble));
-    rail(kit, V(s * (w / 2 + 0.6), yHigh + 1.4, zHigh), V(s * (w / 2 + 0.6), yLow + 1.4, zLow));
-  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g.translate(x, y, z);
 }
-// small local helper so stairs can add an arbitrary geometry with a flat colour
-function paintGeo(g, hex) {
-  g = g.toNonIndexed(); g.deleteAttribute('uv');
-  const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3);
-  g.setAttribute('color', new THREE.BufferAttribute(a, 3));
-  return g;
+
+// ---------------------------------------------------------------------------
+// Stairs along -Z: steps on a sloped stringer, a carved centre ramp, rails.
+// hwHigh / hwLow let the flight fan out as it descends.
+// ---------------------------------------------------------------------------
+function stairs(kit, s) {
+  const hwA = s.hwHigh ?? s.w / 2, hwB = s.hwLow ?? s.w / 2;
+  const rise = s.yHigh - s.yLow, n = Math.round(rise / 0.3), run = (s.zHigh - s.zLow) / n;
+  for (let i = 0; i < n; i++)
+    kit.box((hwA + (hwB - hwA) * (i + 0.5) / n) * 2, 4, run + 0.02, 0, s.yHigh - i * (rise / n) - 2, s.zHigh - (i + 0.5) * run, COL.marble);
+  for (const [k, lift, col] of [[0.74, 0.4, COL.marbleDark], [0.715, 0.44, COL.marble], [0.36, 0.48, COL.marbleDark], [0.335, 0.52, COL.marble]])
+    taperSlab(kit, { zA: s.zHigh, zB: s.zLow, hwA: hwA * k, hwB: hwB * k, yA0: s.yHigh - 1, yA1: s.yHigh + lift, yB0: s.yLow - 1, yB1: s.yLow + lift, color: col });
+  for (const sg of [-1, 1]) {
+    const xs = (hw) => (sg > 0 ? [hw, hw + 1.2] : [-hw - 1.2, -hw]), [a0, a1] = xs(hwA), [b0, b1] = xs(hwB);
+    kit.add('paint', paint(hexa([
+      [a0, s.yHigh - 4.5, s.zHigh], [a1, s.yHigh - 4.5, s.zHigh], [a1, s.yHigh + 0.4, s.zHigh], [a0, s.yHigh + 0.4, s.zHigh],
+      [b0, s.yLow - 4.5, s.zLow], [b1, s.yLow - 4.5, s.zLow], [b1, s.yLow + 0.4, s.zLow], [b0, s.yLow + 0.4, s.zLow]]), COL.marble));
+    rail(kit, V(sg * (hwA + 0.6), s.yHigh + 0.4, s.zHigh), V(sg * (hwB + 0.6), s.yLow + 0.4, s.zLow));
+  }
 }
 
 // Rectangle of rails with gaps on the -z and +z edges (x ranges).
@@ -67,112 +87,133 @@ function railRect(kit, x0, x1, z0, z1, y, { front = [], back = [] } = {}) {
   rail(kit, V(x0, y, z0), V(x0, y, z1)); rail(kit, V(x1, y, z0), V(x1, y, z1));
 }
 
-// Bronze tripod censer (ding).
-function censer(kit, x, y, z) {
-  const bronze = '#5b4a2e', k = 2.5;
-  kit.box(6 * k, 1, 6 * k, x, y + 0.5, z, COL.marbleDark);
-  const g = [];
+// Bronze tripod censer (ding) on a round marble medallion.
+function censer(kit, x, y, z, k = 1) {
+  const bronze = '#5b4a2e', g = [];
+  kit.add('paint', paint(new THREE.CylinderGeometry(4.2 * k, 4.5 * k, 0.5, 24).translate(x, y + 0.25, z), COL.marbleDark));
   g.push(new THREE.CylinderGeometry(2.2, 1.8, 2.6, 16).translate(0, 3.6, 0));
   g.push(new THREE.CylinderGeometry(1.4, 2.3, 1.6, 16).translate(0, 5.7, 0));
+  g.push(new THREE.SphereGeometry(0.6, 10, 8).translate(0, 6.9, 0));
   for (let i = 0; i < 3; i++) {
     const a = i * Math.PI * 2 / 3;
-    g.push(new THREE.CylinderGeometry(0.3, 0.4, 2.4, 6).translate(Math.cos(a) * 1.4, 2.2, Math.sin(a) * 1.4));
+    g.push(new THREE.CylinderGeometry(0.3, 0.4, 2.4, 6).translate(Math.cos(a) * 1.4, 1.2, Math.sin(a) * 1.4));
   }
-  for (const gg of g) kit.add('paint', paintGeo(gg.scale(k, k, k).translate(x, y - 0.5 * k + 1, z), bronze));
-  kit.add('paint', paintGeo(new THREE.SphereGeometry(0.6 * k, 10, 8).translate(x, y + 7 * k - 0.5 * k + 1, z), COL.gold));
+  for (const gg of g) kit.add('paint', paint(gg.scale(k, k, k).translate(x, y + 0.5, z), bronze));
 }
 
 // Stone lantern.
-function lantern(kit, x, y, z, k = 2.2) {
+function lantern(kit, x, y, z, k = 1) {
   kit.box(1.6 * k, 0.6 * k, 1.6 * k, x, y + 0.3 * k, z, COL.marbleDark);
   kit.box(0.6 * k, 3.2 * k, 0.6 * k, x, y + 2.2 * k, z, COL.marble);
   kit.box(1.4 * k, 1.4 * k, 1.4 * k, x, y + 4.5 * k, z, COL.marble);
-  kit.add('paint', paintGeo(new THREE.ConeGeometry(1.3 * k, 1 * k, 4).rotateY(Math.PI / 4).translate(x, y + 5.7 * k, z), COL.marbleDark));
+  kit.add('paint', paint(new THREE.ConeGeometry(1.3 * k, 1 * k, 4).rotateY(Math.PI / 4).translate(x, y + 5.7 * k, z), COL.marbleDark));
 }
 
-// Marble shaft with a dragon coiling around it.
-function dragonPillar(kit, rocks, p) {
-  const h = p.top - p.base;
-  kit.add('paint', paintGeo(new THREE.CylinderGeometry(p.r * 0.92, p.r, h, 36, 1).translate(p.x, p.base + h / 2, p.z), COL.marble));
-  // capital + base drum
-  kit.box(p.r * 2.3, p.r * 0.28, p.r * 2.3, p.x, p.top - p.r * 0.14, p.z, COL.marble);
-  kit.box(p.r * 2.45, p.r * 0.06, p.r * 2.45, p.x, p.top - p.r * 0.03, p.z, COL.marbleDark);
-  for (const y of [p.top - p.r * 0.3, p.top - p.r * 0.45]) kit.add('paint', paintGeo(new THREE.CylinderGeometry(p.r * 1.12, p.r * 1.05, p.r * 0.08, 36).translate(p.x, y, p.z), COL.marbleDark));
-  // dragon: helical body + spine ridge + head near the top
-  const turns = 2.6, y0 = -30, y1 = p.top - p.r * 0.7, pts = [], spine = [], k = p.r / 17;
-  for (let i = 0; i <= 120; i++) {
-    const t = i / 120, a = t * turns * Math.PI * 2 + (p.x < 0 ? 0 : Math.PI);
-    const rr = p.r + 3 * k + Math.sin(t * 37) * 0.8 * k, y = y0 + (y1 - y0) * t + Math.sin(t * 19) * 2.5 * k;
-    pts.push(V(p.x + Math.cos(a) * rr, y, p.z + Math.sin(a) * rr));
-    spine.push(V(p.x + Math.cos(a) * (rr + 4.2 * k), y + 2.6 * k, p.z + Math.sin(a) * (rr + 4.2 * k)));
+// ---------------------------------------------------------------------------
+// Marble shaft carved with cloud scrolls, a dragon coiled down it (tail under the
+// capital, head reared out over the cloud on the causeway side), timber pavilion on top.
+// ---------------------------------------------------------------------------
+const CARVED = '#e9e5db';
+function dragonPillar(kit, p) {
+  const h = p.top - p.base, r = p.r, mir = p.x < 0 ? 1 : -1;
+  kit.add('paint', paint(new THREE.CylinderGeometry(r * 0.97, r, h, 40, 1).translate(p.x, p.base + h / 2, p.z), '#cdc8bb'));
+  const drum = (rr, hh, y, col) => kit.add('paint', paint(new THREE.CylinderGeometry(rr, rr, hh, 40).translate(p.x, y, p.z), col));
+  drum(r * 1.07, 3, p.top - 9.5, COL.marbleDark); drum(r * 1.13, 3, p.top - 6.5, COL.marble); drum(r * 1.2, 2, p.top - 4, COL.marbleDark);
+  drum(r * 1.12, 3, p.top - 1.5, COL.marble);
+  for (let i = 0; i < 150; i++) {   // cloud scrolls in relief
+    const a = rand(0, 6.283), y = rand(10, p.top - 14), s = rand(5, 13);
+    kit.add('paint', paint(new THREE.IcosahedronGeometry(s, 1).scale(0.55, rand(0.5, 0.9), 1).rotateY(-a)
+      .translate(p.x + Math.cos(a) * r * 0.99, y, p.z + Math.sin(a) * r * 0.99), CARVED));
   }
-  kit.add('paint', paintGeo(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 500, 5 * k, 14), '#e9e5db'));
-  kit.add('paint', paintGeo(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(spine), 500, 1.1 * k, 5), COL.marbleDark));
-  const hd = pts[pts.length - 1], dir = hd.clone().sub(pts[pts.length - 4]).normalize();
-  const head = new THREE.BoxGeometry(7 * k, 5 * k, 11 * k).lookAt(dir).translate(hd.x + dir.x * 5 * k, hd.y + dir.y * 5 * k + k, hd.z + dir.z * 5 * k);
-  kit.add('paint', paintGeo(head, '#e9e5db'));
-  // pavilion on top
-  tower(kit, { x: p.x, y: p.top, z: p.z, ...p.pavilion, corbel: p.r * 2.3 });
+
+  // dragon body: climbs out of the cloud in tight coils; the neck swings out below the capital
+  const y0 = 18, y1 = p.top - 14, turns = 3.7, rb = r * 0.29, N = 240, pts = [];
+  const aHead = Math.PI / 2 - mir * 0.7;
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, a = aHead + mir * (turns * Math.PI * 2 * Math.pow(1 - t, 1.35) + 0.45 * Math.sin(t * 13));
+    const y = y0 + (y1 - y0) * Math.pow(Math.min(t / 0.84, 1), 0.9) - 20 * smooth(t, 0.84, 1) + Math.sin(t * 17) * 4.5 + Math.sin(t * 41 + 1) * 2;
+    const R = r + rb * (0.55 + 0.25 * Math.sin(t * 29)) + 28 * Math.pow(smooth(t, 0.84, 1), 1.4);
+    pts.push(V(p.x + Math.cos(a) * R, y, p.z + Math.sin(a) * R));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts), len = curve.getLength();
+  const rFn = (t) => rb * (0.3 + 0.7 * smooth(t, 0, 0.2)) * (1 - 0.22 * smooth(t, 0.9, 1));
+  kit.add('carved', tubeR(curve, 640, 16, rFn, [len / 4, 16]));
+  const out = (P) => V(P.x - p.x, 0, P.z - p.z).normalize(), q = new THREE.Quaternion();
+  for (let i = 6; i < 392; i += 2) {   // dorsal fins
+    const t = i / 400, P = curve.getPointAt(t), o = out(P), rr = rFn(t);
+    const g = new THREE.ConeGeometry(rr * 0.2, rr * 0.5, 4).translate(0, rr * 0.2, 0)
+      .applyQuaternion(q.setFromUnitVectors(UP, o.clone().multiplyScalar(0.7).add(V(0, 0.7, 0)).normalize()));
+    kit.add('paint', paint(g.translate(P.x + o.x * rr * 0.75, P.y + rr * 0.6, P.z + o.z * rr * 0.75), CARVED));
+  }
+  for (const t of [0.42, 0.6, 0.76]) {   // clawed feet gripping the shaft
+    const P = curve.getPointAt(t), o = out(P), rr = rFn(t), c = V(P.x + o.x * rr * 0.4, P.y - rr * 1.3, P.z + o.z * rr * 0.4);
+    kit.add('paint', paint(new THREE.SphereGeometry(rr * 0.75, 10, 8).translate(c.x, c.y, c.z), CARVED));
+    for (let k = -1.5; k <= 1.5; k++) {
+      const d = V(-o.z * k * 0.5 - o.x * 0.3, -1, o.x * k * 0.5 - o.z * 0.3).normalize();
+      kit.add('paint', paint(new THREE.ConeGeometry(rr * 0.2, rr * 1.4, 5).translate(0, rr * 0.7, 0).applyQuaternion(q.setFromUnitVectors(UP, d)).translate(c.x, c.y, c.z), CARVED));
+    }
+  }
+  // head: built facing +z, then turned along the neck
+  const fw = curve.getTangentAt(1), end = curve.getPointAt(1), parts = [];
+  const cone = (rr, hh, pos, dir) => parts.push(new THREE.ConeGeometry(rr, hh, 6).translate(0, hh / 2, 0).applyQuaternion(q.setFromUnitVectors(UP, V(...dir).normalize())).translate(...pos));
+  parts.push(new THREE.BoxGeometry(rb * 1.7, rb * 1.5, rb * 2.2).translate(0, 0, rb * 0.8));
+  parts.push(new THREE.BoxGeometry(rb * 1.2, rb * 0.8, rb * 2.2).translate(0, rb * 0.05, rb * 2.8));
+  parts.push(new THREE.BoxGeometry(rb * 1.0, rb * 0.32, rb * 2.1).rotateX(0.28).translate(0, rb * -0.85, rb * 2.5));
+  parts.push(new THREE.SphereGeometry(rb * 0.45, 8, 6).translate(0, rb * 0.5, rb * 3.8));
+  for (const sx of [-1, 1]) {
+    cone(rb * 0.22, rb * 2.8, [sx * rb * 0.55, rb * 0.7, rb * 0.3], [sx * 0.25, 0.8, -0.9]);      // horns
+    cone(rb * 0.07, rb * 3.4, [sx * rb * 0.6, rb * -0.1, rb * 3.6], [sx * 0.8, -0.35, 0.5]);      // whiskers
+    for (let k = 0; k < 3; k++) cone(rb * 0.2, rb * 1.6, [sx * rb * 0.85, rb * (0.3 - k * 0.45), rb * 0.1], [sx * 0.8, 0.1 - k * 0.2, -0.8]);   // mane
+    parts.push(new THREE.SphereGeometry(rb * 0.2, 8, 6).translate(sx * rb * 0.7, rb * 0.55, rb * 1.6));
+  }
+  const m = new THREE.Matrix4().lookAt(fw, V(0, 0, 0), UP).setPosition(end);
+  for (const g of parts) kit.add('paint', paint(g.applyMatrix4(m), CARVED));
+
+  tower(kit, { x: p.x, y: p.top, z: p.z, ...p.pavilion, corbel: r * 2.1 });
 }
 
-// Scrolling waterfall streak texture.
+// Scrolling waterfall texture: bright streaks, alpha fading to nothing at the sides.
 function fallTexture() {
-  const c = document.createElement('canvas'); c.width = 128; c.height = 512;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 512;
   const g = c.getContext('2d');
-  g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(0, 0, 128, 512);
-  for (let i = 0; i < 260; i++) {
-    const x = Math.random() * 128, w = rand(1, 5), y = Math.random() * 512, h = rand(60, 300);
-    g.fillStyle = `rgba(255,255,255,${rand(0.2, 0.7)})`;
+  for (let i = 0; i < 520; i++) {
+    const u = (rnd() + rnd() + rnd()) / 3, x = u * 256, w = rand(1, 6), y = rnd() * 512, h = rand(80, 360);
+    g.fillStyle = `rgba(255,255,255,${rand(0.25, 0.8) * (1 - Math.abs(u - 0.5) * 1.6)})`;
     g.fillRect(x, y, w, h); g.fillRect(x, y - 512, w, h);
   }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+  const t = new THREE.CanvasTexture(c); t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 
-// Bent pine on a rock (foreground framing).
+// Wind-bent pine (foreground framing): leaning trunk, boughs, layered needle pads.
 function pine(kit, x, y, z, k = 1) {
-  const trunk = [V(0, 0, 0), V(1.5, 6, 0.5), V(-1, 12, 0), V(3, 17, -1), V(9, 21, -2), V(15, 23, -3)].map(v => v.multiplyScalar(k).add(V(x, y, z)));
-  kit.add('paint', paintGeo(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(trunk), 40, 1.1 * k, 8), '#4a3626'));
-  const pads = [0.3, 0.4, 0.5, 0.58, 0.66, 0.74, 0.82, 0.9, 0.97, 1].map((t, i) => [t, (2.2 + (i % 3) * 0.5) * k, 1]);
-  const curve = new THREE.CatmullRomCurve3(trunk);
-  for (const [t, r, h] of pads) {
-    const c = curve.getPoint(t);
-    // needle clusters: many small flattened lumps fanning out sideways from the trunk
-    const side = (t * 7) % 2 < 1 ? -1 : 1;
-    for (let i = 0; i < 9; i++) {
-      const ox = side * rand(0, r * 1.6), oz = rand(-r, r) * 0.7;
-      const g = new THREE.SphereGeometry(r * rand(0.35, 0.6), 8, 5).scale(1.4, 0.38, 1)
-        .translate(c.x + ox, c.y + rand(-0.4, 0.8) * k, c.z + oz);
-      kit.add('paint', paintGeo(g, i % 3 ? '#2a4429' : '#38563a'));
-    }
+  const P = (a) => a.map(([px, py, pz]) => V(x + px * k, y + py * k, z + pz * k));
+  const limb = (pts, r0, r1) => { const c = new THREE.CatmullRomCurve3(P(pts)); kit.add('paint', paint(tubeR(c, 24, 7, t => (r0 + (r1 - r0) * t) * k), '#4b3a2b')); };
+  limb([[0, -1, 0], [0.7, 2.4, 0.3], [0.1, 4.6, 0.2], [1.3, 6.6, 0], [3.2, 8.2, -0.3], [5, 9.4, -0.6]], 0.6, 0.18);
+  limb([[0.2, 4.2, 0.2], [-2.4, 5, 1], [-5.4, 5.2, 2], [-8.2, 5, 3]], 0.28, 0.08);
+  limb([[1.3, 6.6, 0], [4.4, 7, 0.8], [7.6, 7.2, 1.2], [10.2, 6.8, 1.6]], 0.26, 0.07);
+  limb([[2.4, 7.6, -0.2], [0.4, 9, -0.8], [-2.8, 9.8, -1.2]], 0.22, 0.07);
+  limb([[0.4, 3, 0.2], [2.4, 3.6, 1.6], [4.6, 3.4, 3]], 0.2, 0.06);
+  // [x, y, z, radius]: broad flat tiers, densest at the crown
+  const pads = [[-7.4, 5.5, 2.8, 3.4], [-4, 5.9, 1.4, 3], [-8.6, 3.6, 4.2, 2.6], [-5, 3.4, 3.6, 2.4], [-3.2, 10.2, -1.2, 3.2], [-6.4, 8, 0.2, 2.8],
+    [0.4, 8, 0.6, 3], [2.4, 10, -0.4, 3.2], [5.4, 10.4, -0.8, 3.4], [9.4, 7.5, 1.6, 3.2], [6.2, 7.8, 1.6, 2.8], [3.4, 11.8, -1, 2.2],
+    [4.8, 4, 3.2, 2.6], [1.6, 5.6, 2.6, 2.2], [-1.4, 7, 2, 2.6], [8, 9.4, 0, 2.4]];
+  for (const [px, py, pz, r] of pads) for (let i = 0; i < 34; i++) {
+    const a = rand(0, 6.283), d = Math.sqrt(rnd()) * r * 0.82, s = rand(0.45, 0.95), lift = rand(-0.45, 0.5);
+    const g = new THREE.IcosahedronGeometry(s * k, 1).scale(1.6, 0.5, 1.4).rotateY(a)
+      .translate(x + (px + Math.cos(a) * d) * k, y + (py + lift) * k, z + (pz + Math.sin(a) * d * 0.8) * k);
+    kit.add('paint', paint(g, lift > 0.2 ? '#44613a' : i % 2 ? '#2d472b' : '#213820'));
   }
 }
 
-// Instanced pines on the palace terraces and spire tops (the reference's forests).
-function createForest() {
-  const parts = [paintGeo(new THREE.CylinderGeometry(0.35, 0.5, 6, 6).translate(0, 3, 0), '#4a3626')];
+// Instanced pines: pts = [x, y, z, scale].
+function createForest(pts) {
+  const parts = [paint(new THREE.CylinderGeometry(0.35, 0.5, 6, 6).translate(0, 3, 0), '#4a3626')];
   [[2.8, 4.4, 0.4], [2.2, 5.6, -0.4], [1.4, 6.7, 0.2]].forEach(([r, y, o]) =>
-    parts.push(paintGeo(new THREE.SphereGeometry(r, 8, 5).scale(1.2, 0.35, 1).translate(o, y, o * 0.5), '#2e4a2e')));
-  const geo = mergeGeometries(parts), pts = [];
-  const free = (x, z, L) => Math.abs(x) > 24 && !L.halls.some(h => Math.abs(x - h.x) < h.w / 2 + 16 && Math.abs(z - h.z) < h.d / 2 + 16);
-  for (const L of LEVELS) for (let i = 0; i < 70; i++) {
-    const x = rand(-L.hw + 6, L.hw - 6), z = rand(L.z0 + 6, L.z1 - 6);
-    if (free(x, z, L)) pts.push([x, L.top, z]);
-  }
-  for (const s of PAGODA_SPIRES) for (let i = 0; i < 5; i++) {
-    const a = rand(0, 6.28), d = s.w * rand(0.7, 1.1); pts.push([s.x + Math.cos(a) * d, s.top - 2, s.z + Math.sin(a) * d]);
-  }
-  for (const r of FOREST_ROCKS) for (let i = 0; i < 14; i++) {
-    const a = rand(0, 6.28), d = r.r * Math.sqrt(Math.random()) * 0.85, x = r.x + Math.cos(a) * d;
-    if (Math.abs(x) > CW / 2 + 4) pts.push([x, r.top - 1, r.z + Math.sin(a) * d]);
-  }
-  for (const t of [...FLANK_TOWERS, ...PEDESTAL_TOWERS]) for (let i = 0; i < 4; i++) {
-    const a = rand(0, 6.28), d = t.w * rand(0.75, 1.0); pts.push([t.x + Math.cos(a) * d, (t.top > 95 && t.floors && PEDESTAL_TOWERS.includes(t)) ? 51 : t.top - 1, t.z + Math.sin(a) * d]);
-  }
-  const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true }), pts.length);
+    parts.push(paint(new THREE.SphereGeometry(r, 8, 5).scale(1.2, 0.35, 1).translate(o, y, o * 0.5), '#35543a')));
+  const mesh = new THREE.InstancedMesh(mergeGeometries(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true }), pts.length);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-  pts.forEach(([x, y, z], i) => {
-    const k = rand(2, 3.6);
+  pts.forEach(([x, y, z, k], i) => {
     m.compose(V(x, y, z), q.setFromEuler(e.set(0, rand(0, 6.28), 0)), V(k, k * rand(0.9, 1.3), k));
     mesh.setMatrixAt(i, m);
   });
@@ -182,133 +223,196 @@ function createForest() {
 
 // ---------------------------------------------------------------------------
 export function createSkyRealm({ meshClouds = false } = {}) {
-  const kit = new Kit(), rocks = [];
+  const kit = new Kit(), rocks = [], trees = [];
   const group = new THREE.Group();
+  const grove = (x, z, y, r, n, k0, k1) => { for (let i = 0; i < n; i++) { const a = rand(0, 6.283), d = r * Math.sqrt(rnd()); trees.push([x + Math.cos(a) * d, y, z + Math.sin(a) * d, rand(k0, k1)]); } };
 
-  // Spawn landing on a rock outcrop, with a pine framing the left of the view
-  kit.box(PAD.x1 - PAD.x0, 4, PAD.z1 - PAD.z0, 0, PAD.top - 2, (PAD.z0 + PAD.z1) / 2, COL.marble);
-  kit.box(CW - 2, 0.08, PAD.z1 - PAD.z0 - 2, 0, PAD.top + 0.04, (PAD.z0 + PAD.z1) / 2, COL.marbleDark);
-  kit.box(CW - 4, 0.1, PAD.z1 - PAD.z0 - 4, 0, PAD.top + 0.06, (PAD.z0 + PAD.z1) / 2, COL.marble);
-  kit.box(4, 0.12, PAD.z1 - PAD.z0 - 4, 0, PAD.top + 0.08, (PAD.z0 + PAD.z1) / 2, COL.marbleDark);
-  rocks.push(rock(0, 14, -120, PAD.top - 4, 60, 36, { moss: 0.85 }));
-  rocks.push(rock(-50, -20, -80, PAD.top - 22, 30, 14, { moss: 0.6 }));
-  rocks.push(rock(46, -30, -90, PAD.top - 26, 26, 12, { moss: 0.6 }));
-  pine(kit, -50, PAD.top - 23, -24, 1.7);
-  railRect(kit, PAD.x0, PAD.x1, PAD.z0, PAD.z1, PAD.top, { back: [[-STAIR1.w / 2 - 0.6, STAIR1.w / 2 + 0.6]] });
+  // ---- Lookout on a rock outcrop, pine framing the left of the view ----
+  const top = PAD.top;
+  for (let i = 0; i + 1 < PAD.plan.length; i++) {
+    const [zA, hwA] = PAD.plan[i], [zB, hwB] = PAD.plan[i + 1];
+    taperSlab(kit, { zA, zB, hwA: hwA + 0.9, hwB: hwB + 0.9, yA0: top - 2.4, yA1: top });
+    taperSlab(kit, { zA, zB, hwA: hwA + 1.3, hwB: hwB + 1.3, yA0: top - 3.2, yA1: top - 2.4, color: COL.marbleDark });
+    taperSlab(kit, { zA, zB, hwA: hwA * 0.46, hwB: hwB * 0.46, yA0: top, yA1: top + 0.05, color: COL.marbleDark });
+    taperSlab(kit, { zA, zB, hwA: hwA * 0.38, hwB: hwB * 0.38, yA0: top, yA1: top + 0.08 });
+    for (const s of [-1, 1]) rail(kit, V(s * (hwA + 0.45), top, zA), V(s * (hwB + 0.45), top, zB));
+  }
+  const [zBack, hwBack] = PAD.plan[0];
+  rail(kit, V(-hwBack - 0.45, top, zBack), V(hwBack + 0.45, top, zBack));
+  rocks.push(rock(0, 15, -140, top - 4, 30, 10, { moss: 1.15, rough: 0.4 }));
+  rocks.push(rock(0, -28, -140, 91.5, 24, 6.5, { moss: 1.15, rough: 0.4 }));
+  rocks.push(rock(-18, 0, -110, 98, 20, 9, { moss: 1.15, rough: 0.45 }));
+  for (const [bx, by, bz, rx, ry, rz] of [   // craggy outcrop under the pine and round the lookout
+    [-18.5, 99.5, -5, 7, 5, 6], [-12.5, 101, 5, 5, 5.5, 5], [-25, 97, 5, 7, 5, 7], [-11, 102, 15, 4.5, 5.5, 5], [-17, 99, 14, 6, 5, 6],
+    [-13, 96, -15, 6, 5, 5], [-9, 100, -4, 3.5, 4, 3.5], [10.5, 101.5, -2.5, 3.6, 4.6, 3.4], [11.5, 101, 12, 4.5, 5.5, 5], [13, 98, 4, 5, 5, 5], [10, 103, 24, 4, 4, 4], [-10.5, 103, 26, 4, 4, 4]])
+    rocks.push(boulder(bx, by, bz, rx, ry, rz));
+  pine(kit, -18.7, 102.6, -4.7, 0.92);
+  for (const [sx, sy, sz, n] of [[-12.5, 106, 5, 6], [-24, 101.5, 4, 6], [10.5, 105.6, -2.5, 4], [11.5, 106, 12, 5], [-17, 103.5, 14, 6], [-10, 103.5, -4, 4]])
+    for (let i = 0; i < n; i++) {   // shrubs on the outcrop
+      const s = rand(0.5, 1.1);
+      kit.add('paint', paint(new THREE.IcosahedronGeometry(s, 1).scale(1.3, 0.75, 1.1).translate(sx + rand(-2.2, 2.2), sy + s * 0.2, sz + rand(-2.2, 2.2)), i % 2 ? '#3d5a30' : '#2f4a2a'));
+    }
   stairs(kit, STAIR1);
 
-  // Causeway: deck, inlaid centre strip, piers sinking into the cloud, rails
-  const zA = CAUSEWAY.zStart, zB = CAUSEWAY.zEnd, len = zA - zB, hw = CW / 2 + 1.2;
-  kit.box(hw * 2, 3, len, 0, DECK - 1.5, (zA + zB) / 2, COL.marble);
-  kit.box(5, 0.1, len, 0, DECK + 0.05, (zA + zB) / 2, COL.marbleDark);
-  kit.box(hw * 2 + 1, 1.2, len, 0, DECK - 3.6, (zA + zB) / 2, COL.marbleDark);
-  for (let z = zA - 20; z > zB; z -= 46) {
-    kit.box(hw * 2 - 2, 180, 10, 0, DECK - 94, z, COL.marble);
-    kit.box(hw * 2 + 2, 3, 11, 0, DECK - 5.5, z, COL.marbleDark);
+  // ---- Censer terrace: upper tier at deck level on a wider lower tier sinking into the cloud ----
+  const P = PLATFORM, pz = (P.z0 + P.z1) / 2, pd = P.z1 - P.z0, ly = DECK - P.lowerDrop;
+  kit.box(P.hw * 2, 3, pd, 0, DECK - 1.5, pz, COL.marble);
+  kit.box(P.hw * 2 + 1.4, 1.2, pd + 1.4, 0, DECK - 3.4, pz, COL.marbleDark);
+  kit.box(P.hw * 2 - 2, P.lowerDrop, pd - 2, 0, ly + P.lowerDrop / 2 - 2, pz, COL.marble);
+  kit.box(P.lowerHw * 2, 3, pd + 10, 0, ly - 1.5, pz, COL.marble);
+  kit.box(P.lowerHw * 2 + 1.4, 1.2, pd + 11.4, 0, ly - 3.4, pz, COL.marbleDark);
+  kit.box(P.lowerHw * 2 - 3, 170, pd + 7, 0, ly - 88, pz, COL.marble);
+  for (const dy of [14, 28]) kit.box(P.lowerHw * 2 - 2, 1.5, pd + 8, 0, ly - dy, pz, COL.marbleDark);
+  railRect(kit, -P.hw + 0.5, P.hw - 0.5, P.z0 + 0.5, P.z1 - 0.5, DECK, { front: [[-STAIR1.hwLow - 1.2, STAIR1.hwLow + 1.2]], back: [[-CW3 - 1.2, CW3 + 1.2]] });
+  railRect(kit, -P.lowerHw + 0.5, P.lowerHw - 0.5, P.z0 - 4.5, P.z1 + 4.5, ly, { front: [[-P.hw, P.hw]], back: [[-P.hw, P.hw]] });
+  for (const dx of [-4.2, 4.2]) kit.box(0.5, 0.06, pd, dx, DECK + 0.03, pz, COL.marbleDark);
+  censer(kit, 0, DECK, pz, 0.9);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) lantern(kit, sx * (P.hw - 5), DECK, pz + sz * (pd / 2 - 5), 0.8);
+
+  // ---- Causeway: deck on piers sinking into the cloud ----
+  const deck = (hw, zA, zB) => {
+    const len = zA - zB, zc = (zA + zB) / 2;
+    kit.box(hw * 2 + 2.4, 3, len, 0, DECK - 1.5, zc, COL.marble);
+    kit.box(hw * 2 + 3.4, 1.2, len, 0, DECK - 3.6, zc, COL.marbleDark);
+    for (const s of [-1, 1]) {
+      rail(kit, V(s * (hw + 0.6), DECK, zA), V(s * (hw + 0.6), DECK, zB));
+      kit.box(0.5, 0.06, len, s * hw * 0.4, DECK + 0.03, zc, COL.marbleDark);     // inlaid lane borders
+    }
+    for (let z = zA - 11.5; z > zB + 3; z -= 11.5) kit.box(hw * 2, 0.06, 0.4, 0, DECK + 0.03, z, COL.marbleDark);   // paving joints
+    for (let z = zA - 23; z > zB + 6; z -= 46) {
+      kit.box(hw * 2 - 2, 180, 10, 0, DECK - 94, z, COL.marble);
+      kit.box(hw * 2 + 3.6, 3, 11.5, 0, DECK - 5.5, z, COL.marbleDark);
+    }
+  };
+  deck(CW3, P.z0, LANDING2.z1);                       // three lanes: low kerbs divide them
+  for (const s of [-1, 1]) kit.box(0.7, 0.5, P.z0 - LANDING2.z1, s * 5.5, DECK + 0.25, (P.z0 + LANDING2.z1) / 2, COL.marble);
+  const L2 = LANDING2, l2z = (L2.z0 + L2.z1) / 2;
+  kit.box(L2.hw * 2, 4, L2.z1 - L2.z0, 0, DECK - 2, l2z, COL.marble);
+  kit.box(L2.hw * 2 + 1.5, 1.4, L2.z1 - L2.z0 + 1.5, 0, DECK - 4.6, l2z, COL.marbleDark);
+  kit.box(L2.hw * 2 - 6, 180, L2.z1 - L2.z0 - 6, 0, DECK - 95, l2z, COL.marble);
+  railRect(kit, -L2.hw + 0.5, L2.hw - 0.5, L2.z0 + 0.5, L2.z1 - 0.5, DECK, { front: [[-CW3 - 1.2, CW3 + 1.2]], back: [[-LANE - 1.2, LANE + 1.2]] });
+  censer(kit, 0, DECK, l2z, 0.6);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {   // corner blocks with lanterns
+    kit.box(5, 3.2, 5, sx * (L2.hw - 3.2), DECK + 1.6, l2z + sz * ((L2.z1 - L2.z0) / 2 - 3.2), COL.marble);
+    lantern(kit, sx * (L2.hw - 3.2), DECK + 3.2, l2z + sz * ((L2.z1 - L2.z0) / 2 - 3.2), 1.1);
   }
-  let z = zA;
-  for (const L of LANDINGS) {
-    for (const s of [-1, 1]) rail(kit, V(s * (CW / 2 + 0.6), DECK, z), V(s * (CW / 2 + 0.6), DECK, L.z1));
-    z = L.z0;
-    const cz = (L.z0 + L.z1) / 2;
-    kit.box(L.hw * 2, 5, L.z1 - L.z0, 0, DECK - 2.5, cz, COL.marble);
-    kit.box(L.hw * 2 + 1.5, 1.5, L.z1 - L.z0 + 1.5, 0, DECK - 5, cz, COL.marbleDark);
-    kit.box(L.hw * 2 - 12, 180, L.z1 - L.z0 - 12, 0, DECK - 96, cz, COL.marble);
-    const gap = [[-CW / 2 - 0.6, CW / 2 + 0.6]];
-    railRect(kit, -L.hw + 0.5, L.hw - 0.5, L.z0 + 0.5, L.z1 - 0.5, DECK, { front: gap, back: gap });
-    if (L.censer) censer(kit, 0, DECK, cz);
-    if (L.lanterns) for (const sx of [-1, 1]) for (const sz of [-1, 1]) lantern(kit, sx * (L.hw - 8), DECK, cz + sz * 16);
-    if (L.lanterns) {   // statue on a pedestal at the junction
-      kit.box(8, 2.4, 8, 0, DECK + 1.2, cz, COL.marbleDark);
-      kit.box(5, 2, 5, 0, DECK + 3.4, cz, COL.marble);
-      kit.add('paint', paintGeo(new THREE.CylinderGeometry(0.9, 1.6, 6, 10).translate(0, DECK + 7.4, cz), '#d9d4c8'));
-      kit.add('paint', paintGeo(new THREE.SphereGeometry(0.75, 10, 8).translate(0, DECK + 11, cz), '#d9d4c8'));
+  deck(LANE, L2.z0, CAUSEWAY.zEnd);
+  for (const s of [-1, 1]) {   // low side terraces past the landing
+    const T = TERRACE_B, w = T.hw - LANE - 1.2, x = s * (LANE + 1.2 + w / 2), len = L2.z0 - T.z0, zc = (L2.z0 + T.z0) / 2, ty = DECK - T.drop;
+    kit.box(w, 3, len, x, ty - 1.5, zc, COL.marble);
+    kit.box(w + 1, 1.2, len + 1, x, ty - 3.6, zc, COL.marbleDark);
+    kit.box(w - 2, 170, len - 2, x, ty - 88, zc, COL.marble);
+    rail(kit, V(s * (T.hw - 0.5), ty, L2.z0), V(s * (T.hw - 0.5), ty, T.z0));
+    rail(kit, V(s * (LANE + 1.8), ty, T.z0 + 0.5), V(s * (T.hw - 0.5), ty, T.z0 + 0.5));
+  }
+
+  // ---- Dragon pillars ----
+  for (const p of PILLARS) dragonPillar(kit, p);
+
+  // ---- Forested rock ridge either side of the causeway, widening toward the palace ----
+  for (const s of [-1, 1]) for (let z = -445; z > -1275; z -= 46) {
+    const far = 0.115 * (29 - z), n = 1 + Math.floor(far / 62);
+    for (let i = 0; i < n; i++) {
+      const r = rand(26, 42), x = s * (LANE + 6 + r * 0.8 + (far - LANE - 6) * (i + rnd() * 0.8) / n), ty = rand(32, 50);
+      if (PEDESTAL_TOWERS.some(t => Math.hypot(x - t.x, z - t.z) < r + 34)) continue;
+      rocks.push(rock(x, z + rand(-14, 14), -120, ty, r * 0.5, r, { moss: 0.72, dome: 0.25 }));
+      grove(x, z, ty - 1, r * 0.8, 7, 1.8, 3.2);
     }
   }
-  for (const s of [-1, 1]) rail(kit, V(s * (CW / 2 + 0.6), DECK, z), V(s * (CW / 2 + 0.6), DECK, zB));
+  for (const t of PEDESTAL_TOWERS) {   // layer 1
+    rocks.push(rock(t.x, t.z, -120, 22, t.ped * 1.1, t.ped * 1.7, { moss: 0.7 }));
+    kit.box(t.ped, t.top - 14, t.ped, t.x, (t.top + 14) / 2, t.z, COL.marble);
+    kit.box(t.ped * 1.16, 3, t.ped * 1.16, t.x, 23.5, t.z, COL.marbleDark);
+    kit.box(t.ped * 1.12, 1.6, t.ped * 1.12, t.x, t.top - 0.8, t.z, COL.marbleDark);
+    tower(kit, { x: t.x, y: t.top, z: t.z, w: t.w, floors: 3, height: t.apex - t.top, corbel: t.ped * 0.9 });
+  }
 
-  // Dragon pillars with timber pavilions
-  for (const p of PILLARS) dragonPillar(kit, rocks, p);
-
-  // Stacked palace: rock-founded marble terraces, halls, axial stairs
+  // ---- Stacked palace: terraces on crags, halls, axial stairs ----
   for (const [i, L] of LEVELS.entries()) {
-    const cz = (L.z0 + L.z1) / 2, d = L.z1 - L.z0;
-    kit.box(L.hw * 2, 10, d, 0, L.top - 5, cz, COL.marble);
-    kit.box(L.hw * 2 + 2, 1.6, d + 2, 0, L.top - 0.8, cz, COL.marbleDark);
-    kit.box(L.hw * 2 + 3, 2, d + 3, 0, L.top - 10, cz, COL.marbleDark);
-    // clustered crags tapering down into the cloud
-    rocks.push(rock(0, cz, -160, L.top - 9, L.hw * 0.45, L.hw * 0.95, { moss: 0.9, rough: 0.3 }));
-    for (const sx of [-1, 1]) rocks.push(rock(sx * L.hw * 0.6, cz + rand(-10, 10), -60 - rand(0, 40), L.top - rand(12, 30), L.hw * 0.2, L.hw * 0.42, { moss: 0.85, rough: 0.4 }));
-    const gap = [[-15, 15]];
-    railRect(kit, -L.hw + 0.5, L.hw - 0.5, L.z0 + 0.5, L.z1 - 0.5, L.top, { front: gap, back: i < LEVELS.length - 1 ? gap : [] });
-    for (const h of L.halls) {
-      const ht = h.stacked
-        ? stackedHall(kit, { x: h.x, y: L.top, z: h.z, w: h.w, d: h.d, floors: h.floors, colH: h.colH })
-        : hall(kit, { ...h, y: L.top, double: h.double ?? true, roof: 'slate', plaque: true, bays: h.bays ?? 7, plinthH: h.passage ? 0.6 : undefined });
-      if (h.main) setColliderTop('mainHall', L.top + ht);
+    const cz = (L.z0 + L.z1) / 2, d = L.z1 - L.z0, last = i === LEVELS.length - 1;
+    kit.box(L.hw * 2, 3, d, 0, L.top - 1.5, cz, COL.marble);
+    kit.box(L.hw * 2 + 2, 1.4, d + 2, 0, L.top - 3.6, cz, COL.marbleDark);
+    kit.box(L.hw * 2 - 1.5, 26, d - 1.5, 0, L.top - 17, cz, i ? COL.red : COL.marble);   // red retaining wall under the marble cap
+    kit.box(L.hw * 2, 2.5, d, 0, L.top - 31, cz, COL.marbleDark);
+    const n = Math.ceil(2 * L.hw / (d * 0.95));
+    for (let k = 0; k < n; k++) rocks.push(rock(-L.hw + (k + 0.5) * 2 * L.hw / n, cz + rand(-8, 8), -160, L.top - 30, d * 0.42, d * 0.66, { moss: 0.9, rough: 0.3 }));
+    const g = i ? 15.6 : LANE + 1.2;
+    railRect(kit, -L.hw + 0.5, L.hw - 0.5, L.z0 + 0.5, L.z1 - 0.5, L.top, { front: [[-g, g]], back: last ? [] : [[-15.6, 15.6]] });
+    const halls = HALLS.filter(h => h.level === i);
+    for (let k = 0; k < 60; k++) {   // courtyard pines
+      const x = rand(-L.hw + 8, L.hw - 8), z = rand(L.z0 + 6, L.z1 - 6);
+      if (Math.abs(x) > 26 && !halls.some(h => Math.abs(x - h.x) < h.w / 2 + 16 && Math.abs(z - h.z) < h.d / 2 + 14)) trees.push([x, L.top, z, rand(2.4, 3.8)]);
     }
+  }
+  for (const h of HALLS) {
+    const y = LEVELS[h.level].top;
+    const ht = h.kind === 'block' ? tieredBlock(kit, { ...h, y }) : grandHall(kit, { ...h, y });
+    if (h.main) setColliderTop('mainHall', y + ht);
   }
   PALACE_STAIRS.forEach(s => stairs(kit, s));
-  // Forested rocks + pedestal towers flanking the causeway end
-  for (const r of FOREST_ROCKS) rocks.push(rock(r.x, r.z, -120, r.top, r.r * 0.5, r.r, { moss: 0.7 }));
-  for (const t of PEDESTAL_TOWERS) {
-    rocks.push(rock(t.x, t.z, -120, 52, t.w * 0.6, t.w * 1.3, { moss: 0.7 }));
-    kit.box(t.w * 0.7, t.top - 50, t.w * 0.7, t.x, (t.top + 50) / 2, t.z, COL.marble);
-    kit.box(t.w * 0.8, 2, t.w * 0.8, t.x, t.top - 1, t.z, COL.marbleDark);
-    tower(kit, { ...t, y: t.top, corbel: t.w * 0.7 });
-  }
-  // Pavilions on spires stepping up both flanks
+  rocks.push(rock(0, -1722, -160, 136, 44, 34, { moss: 0.9 }));   // carries the long stair to the top hall
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) lantern(kit, sx * 24, DECK, LEVELS[0].z1 - 8 + sz * 4, 2.4);
+
+  // Layers 2-5: pavilions and pagodas on rock spires up both flanks
   for (const t of FLANK_TOWERS) {
-    if (!t.onLevel) rocks.push(rock(t.x, t.z, -120, t.top, t.w * 0.7, t.w * 1.0, { moss: 0.85 }));
-    tower(kit, { ...t, y: t.top });
+    if (!t.onLevel) { rocks.push(rock(t.x, t.z, -120, t.top, t.w * 0.7, t.w * 0.95, { moss: 0.85 })); grove(t.x, t.z, t.top - 1, t.w * 0.9, 5, 2.2, 3.2); }
+    tower(kit, { x: t.x, y: t.top, z: t.z, w: t.w, floors: t.floors, height: t.apex - t.top });
   }
-
-  // Pagodas on rock spires
   for (const s of PAGODA_SPIRES) {
-    rocks.push(rock(s.x, s.z, -90, s.top, s.w * 1.4, s.w * 0.9, { moss: 0.8 }));
-    pagoda(kit, { x: s.x, y: s.top, z: s.z, w: s.w * 0.55, floors: s.floors, colH: s.w * 0.4, roof: 'slate' });
+    rocks.push(rock(s.x, s.z, -120, s.top, s.w * 2.2, s.w * 1.3, { moss: 0.8 }));
+    grove(s.x, s.z, s.top - 1, s.w * 1.2, 5, 2.2, 3.2);
+    pagoda(kit, { x: s.x, y: s.top, z: s.z, w: s.w, floors: s.floors, height: s.apex - s.top });
   }
 
-  // Cliff massif behind the palace
-  for (let i = 0; i < 24; i++) {
-    const x = -1000 + i * 87 + rand(-30, 30), zz = CLIFF.z - rand(0, 220) - Math.abs(x) * 0.2;
-    const top = CLIFF.top * (1 - Math.abs(x) / 1500) * rand(0.75, 1.05);
-    rocks.push(rock(x, zz, -160, top, rand(150, 220), rand(60, 110), { rough: 0.4, moss: 0.55 }));
+  // ---- Karst massif and crags behind the palace ----
+  for (let i = 0; i < 8; i++) {
+    const x = CLIFF.x0 + 50 + (CLIFF.x1 - CLIFF.x0 - 100) * i / 7 + rand(-18, 18);
+    rocks.push(rock(x, CLIFF.z - rand(0, 70), -160, CLIFF.top * rand(0.8, 1.05), rand(95, 125), rand(48, 72), { rough: 0.36, moss: 0.93, seg: 20 }));
+  }
+  for (const c of CRAGS) {
+    rocks.push(rock(c.x, c.z, -160, c.top, c.r * 1.6, c.r * 0.55, { rough: 0.42, moss: 0.82, seg: 16 }));
+    grove(c.x, c.z, c.top - 2, c.r * 0.5, 7, 3, 5);
+    if (c.top < 200) tower(kit, { x: c.x, y: c.top, z: c.z, w: c.r * 0.5, floors: 2, colH: c.r * 0.22 });
   }
 
-  const rockMesh = new THREE.Mesh(mergeGeometries(rocks), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
+  const rockMesh = new THREE.Mesh(mergeGeometries(rocks.map(g => (g.index ? g.toNonIndexed() : g))), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
   rockMesh.castShadow = rockMesh.receiveShadow = true;
   group.add(kit.build(), rockMesh);
 
-  // Waterfalls down the cliff face
+  // Waterfalls: a broad veil down the massif
   const ftex = fallTexture(), falls = [];
-  for (const f of FALLS) {
-    const t = ftex.clone(); t.needsUpdate = true; t.repeat.set(f.w / 60, 4);
-    const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: true, opacity: 0.9, color: '#f4f8ff', fog: true });
-    const top = CLIFF.top * 0.85, mesh = new THREE.Mesh(new THREE.PlaneGeometry(f.w, top + 40), m);
-    mesh.position.set(f.x, top / 2 - 20, f.z);
+  for (const f of FALLS) for (const [k, dz, op] of [[1, 0, 0.95], [0.6, 6, 0.8]]) {   // two layered veils each
+    const t = ftex.clone(); t.needsUpdate = true; t.repeat.set(1, (f.y1 - f.y0) / 260); t.offset.y = rnd();
+    const m = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.03, opacity: op, color: new THREE.Color('#f6f9ff').multiplyScalar(1.5), fog: true });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(f.w * 1.5 * k, f.y1 - f.y0), m);
+    mesh.position.set(f.x + (k < 1 ? f.w * 0.2 : 0), (f.y0 + f.y1) / 2, f.z + dz);
     falls.push(t); group.add(mesh);
   }
 
-  // Cloud towers: around pillar shafts, beside the causeway, flanking the palace, at the falls
-  const puffs = [];
-  for (const p of PILLARS) for (let i = 0; i < 4; i++) puffs.push({ x: p.x + rand(-90, 90), y: rand(-70, -30), z: p.z + rand(-70, 70), r: rand(70, 110) });
-  for (const L of LEVELS) for (const sx of [-1, 1]) puffs.push({ x: sx * (L.hw + rand(20, 80)), y: L.top - rand(110, 150), z: (L.z0 + L.z1) / 2, r: rand(90, 140) });
-  for (const sx of [-1, 1]) for (let i = 0; i < 2; i++) puffs.push({ x: sx * rand(420, 560), y: rand(40, 110), z: rand(-1350, -1800), r: rand(130, 170) });
-  for (const f of FALLS) puffs.push({ x: f.x, y: 0, z: f.z + 60, r: 120 });
-  for (let i = 0; i < 18; i++) {
-    const sx = Math.random() < 0.5 ? -1 : 1;
-    puffs.push({ x: sx * rand(90, 480), y: rand(-75, -40), z: rand(-380, -1250), r: rand(60, 110) });
+  // ---- Cloud towers (baked into the cloud volume): round the pillar shafts, beside the
+  // causeway, banked against the palace flanks, and great cumulus wrapping the massif ----
+  const puffs = [], low = (top, r) => top - 1.25 * r;   // centre height that puts the crown at `top`
+  for (const p of PILLARS) for (let i = 0; i < 6; i++) {
+    const a = i / 6 * 6.283 + rand(0, 0.8), d = rand(70, 120), r = rand(40, 60);
+    puffs.push({ x: p.x + Math.cos(a) * d, y: low(rand(52, 76), r), z: p.z + Math.sin(a) * d, r });
   }
-  // Volumetric mode bakes the towers into the cloud volume; mesh mode builds them here.
+  for (let i = 0; i < 22; i++) {
+    const s = i % 2 ? 1 : -1, r = rand(42, 78), x = s * rand(60 + r * 1.3, 430);
+    puffs.push({ x, y: low(rand(44, 58) + Math.abs(x) * 0.06, r), z: rand(-190, -1150), r });
+  }
+  for (const s of [-1, 1]) {
+    puffs.push({ x: s * rand(430, 480), y: 60, z: -1330, r: 120 }, { x: s * rand(480, 540), y: 110, z: -1560, r: 150 });
+    puffs.push({ x: s * 175, y: 235, z: -1945, r: 105 });
+  }
+  puffs.push({ x: 520, y: 170, z: -1850, r: 215 }, { x: 395, y: 300, z: -1960, r: 135 }, { x: -430, y: 300, z: -1990, r: 200 }, { x: -350, y: 130, z: -1720, r: 160 });
+  for (const f of FALLS) puffs.push({ x: f.x, y: 150, z: f.z + 40, r: 90 });
   group.userData.puffs = puffs;
   const mist = !meshClouds ? null : createMist([
     ...LEVELS.map(L => ({ x: rand(-150, 150), y: L.top - 30, z: L.z1 + 20, s: 700, o: 0.5 })),
-    ...FALLS.map(f => ({ x: f.x, y: 120, z: f.z + 80, s: 600, o: 0.8 })),
-    ...PILLARS.map(p => ({ x: p.x, y: 40, z: p.z + 80, s: 500, o: 0.55 })),
+    ...PILLARS.map(p => ({ x: p.x, y: 60, z: p.z + 80, s: 500, o: 0.55 })),
   ]);
   if (meshClouds) group.add(createCloudPuffs(puffs), mist);
-  group.add(createForest());
+  group.add(createForest(trees));
 
   group.userData.update = (t, dt) => {
     for (const f of falls) f.offset.y += dt * 0.35;

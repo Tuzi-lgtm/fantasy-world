@@ -13,15 +13,19 @@ export const cloudMat = new THREE.MeshStandardMaterial({
 
 const shade = (c, t) => (t < 0.5 ? c.copy(crease).lerp(mid, t * 2) : c.copy(mid).lerp(top, (t - 0.5) * 2));
 
-// Billow height field: |noise| gives rounded tops and sharp creases.
+// Billow height field: |noise| gives rounded tops and sharp creases. Tops average ~35 m,
+// so the sea laps just under the causeway (deck 60) and round the pillar shafts.
 export function cloudHeight(x, z) {
   const n1 = Math.abs(noise.noise(x * 0.0024, z * 0.0024, 3.1));
   const n2 = Math.abs(noise.noise(x * 0.0075, z * 0.0075, 7.7));
   const n3 = Math.abs(noise.noise(x * 0.02, z * 0.02, 1.3));
   const big = noise.noise(x * 0.0007, z * 0.0007, 5.5);
-  let h = 60 * Math.sqrt(n1) + 36 * Math.sqrt(n2) + 15 * Math.sqrt(n3) + 45 * big - 72;
-  // keep a lower trough under the causeway so the deck floats above the cloud
-  if (z < 120 && z > -1350) h -= 50 * (1 - THREE.MathUtils.smoothstep(Math.abs(x), 20, 200));
+  let h = 46 * Math.sqrt(n1) + 42 * Math.sqrt(n2) + 22 * Math.sqrt(n3) + 40 * big - 15;
+  // Along the axis the billows are flattened to stay under the deck; the band widens
+  // over the palace forecourt and fades out before and beyond the realm.
+  const S = THREE.MathUtils.smoothstep, half = 30 + 330 * S(-z, 1100, 1350);
+  const free = Math.max(S(Math.abs(x), half, half + 190), S(z, 200, 330), S(-z, 1480, 1640));
+  h += (52 - (110 - h) * 0.62 - h) * (1 - free);
   return { h, k: Math.sqrt(n2) * 0.6 + Math.sqrt(n3) * 0.4 };
 }
 

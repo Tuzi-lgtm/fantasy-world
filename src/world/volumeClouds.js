@@ -13,7 +13,10 @@ export const CLOUD_QUALITY = { scale: 0.5, steps: 128 };
 
 const MAP = 1024, S = 9000, CZ = -900;        // global map: warped grid, denser near the axis
 const LOCAL = { cx: 0, hx: 1100, cz: -1100, hz: 1300 };   // linear high-res map over the realm
-const rand = (a, b) => a + Math.random() * (b - a);
+// Seeded, so the cloud towers land in the same place on every load.
+let seed = 7;
+const rnd = () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const rand = (a, b) => a + rnd() * (b - a);
 
 // Map axes: texel index <-> world coordinate.
 const warpAxis = (c) => ({
@@ -31,7 +34,7 @@ function towerBlobs(puffs) {
   for (const s of puffs) {
     const n = Math.round(rand(9, 15));
     for (let b = 0; b < n; b++) {
-      const up = Math.random(), r = s.r * rand(0.28, 0.6) * (1 - up * 0.45) * 1.25;
+      const up = rnd(), r = s.r * rand(0.28, 0.6) * (1 - up * 0.45) * 1.25;
       out.push({ x: s.x + rand(-1, 1) * s.r * (1.3 - up * 0.8), z: s.z + rand(-1, 1) * s.r * (1 - up * 0.6), y: s.y + up * s.r * 0.9, r });
     }
   }
@@ -63,7 +66,7 @@ function bakeSea(ax, az) {
 
 // Cloud towers: a 3D distance field (metres inside each ellipsoid, smooth union),
 // flatter on the underside. Byte = distance + 128.
-const BOX = { x0: -1100, y0: -200, z0: -2400, sx: 2200, sy: 650, sz: 2600, nx: 256, ny: 76, nz: 304 };
+const BOX = { x0: -1100, y0: -200, z0: -2400, sx: 2200, sy: 830, sz: 2600, nx: 256, ny: 96, nz: 304 };
 function bakeTowers(blobs) {
   const { x0, y0, z0, sx, sy, sz, nx, ny, nz } = BOX, vx = sx / nx, vy = sy / ny, vz = sz / nz;
   const f = new Float32Array(nx * ny * nz).fill(-128);
@@ -157,9 +160,9 @@ float towers(vec3 p) {
 float depthBelow(vec3 p, vec2 m) { return max((m.x - p.y) * m.y, towers(p)); }
 
 float density(vec3 p, float h) {
-  float base = clamp(h / 14.0, 0.0, 1.0);
+  float base = clamp(h / 18.0, 0.0, 1.0);
   vec3 w = vec3(time * 1.2, 0.0, time * 0.6);
-  float n = texture(tNoise, (p + w) / 170.0).r * 0.72 + texture(tNoise, (p + w * 1.6) / 52.0).r * 0.28;
+  float n = texture(tNoise, (p + w) / 150.0).r * 0.6 + texture(tNoise, (p + w * 1.6) / 46.0).r * 0.4;
   float edge = 1.0 - clamp(h / 75.0, 0.0, 1.0);          // erosion strongest at the surface
   return clamp((base - (1.0 - n) * 1.05 * edge) * 2.6, 0.0, 1.0);
 }
@@ -210,13 +213,18 @@ void main() {
                + coarse(p + sunDir * 18.0) * 20.0 + coarse(p + sunDir * 50.0) * 45.0
                + coarse(p + sunDir * 110.0) * 80.0;
       od *= SIGMA;
+      // sky occlusion: crevices between billows sit below their neighbours' tops
+      float nb = 0.25 * (topH(p.xz + vec2(48.0, 0.0)).x + topH(p.xz - vec2(48.0, 0.0)).x
+                       + topH(p.xz + vec2(0.0, 48.0)).x + topH(p.xz - vec2(0.0, 48.0)).x);
+      float ao = clamp(1.0 - (nb - p.y) / 42.0, 0.0, 1.0);
+      ao *= ao;
       vec3 sun = vec3(0.0);
       for (int k = 0; k < 3; k++) {
-        float a = pow(0.5, float(k)), b = pow(0.45, float(k));
-        sun += a * exp(-od * b) * ph[k];
+        float a = pow(0.5, float(k)), b = pow(0.5, float(k));
+        sun += a * exp(-od * b) * ph[k] * (k == 0 ? 1.0 : mix(0.08, 1.0, ao));
       }
       float powder = 1.0 - exp(-sig * 40.0);
-      vec3 amb = mix(ambBot, ambTop, exp(-max(h, 0.0) / 28.0));
+      vec3 amb = mix(ambBot, ambTop, exp(-max(h, 0.0) / 28.0)) * mix(0.3, 1.0, ao);
       vec3 Sc = (sunCol * sun * mix(0.55, 1.0, powder) + amb) * sig;
       float Tr = exp(-sig * dt);
       L += T * (Sc - Sc * Tr) / sig;
@@ -274,8 +282,8 @@ export class CloudPass extends Pass {
       uniforms: {
         tDepth: { value: this.sceneRT.depthTexture }, tHeight: { value: global.tex }, tLocal: { value: local.tex }, tTowers: { value: tw.tex }, tNoise: { value: bakeNoise() },
         projInv: { value: camera.projectionMatrixInverse }, camWorld: { value: camera.matrixWorld }, camPos: { value: new THREE.Vector3() },
-        sunDir: { value: sunDir }, sunCol: { value: sunColor.clone().multiplyScalar(14) },
-        ambTop: { value: lin('#b4cbec', 0.95) }, ambBot: { value: lin('#6a7ca4', 0.42) },
+        sunDir: { value: sunDir }, sunCol: { value: sunColor.clone().multiplyScalar(20) },
+        ambTop: { value: lin('#9dbcf0', 0.5) }, ambBot: { value: lin('#506aa6', 0.2) },
         fogCol: { value: fog.color }, fogDensity: { value: fog.density },
         time: { value: 0 }, yMax: { value: Math.max(global.max, local.max, tw.max) + 4 }, tMax: { value: camera.far * 0.95 },
       },

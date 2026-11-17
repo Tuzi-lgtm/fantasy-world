@@ -12,6 +12,12 @@ export function walkHeight(x, z, feet = Infinity) {
       const r = c.ramp, t = (z - r.zLow) / (r.zHigh - r.zLow);
       top = r.yLow + (r.yHigh - r.yLow) * Math.min(Math.max(t, 0), 1);
     }
+    if (c.taper) {   // half-width varies along z; a rail-high band just outside the edge
+      const t = c.taper, k = Math.min(Math.max((z - t.z0) / (t.z1 - t.z0), 0), 1);
+      const hw = t.hw0 + (t.hw1 - t.hw0) * k, ax = Math.abs(x);
+      if (ax > hw + 1.2) continue;
+      if (ax > hw) top += 4.4;
+    }
     h = Math.max(h, top);
   }
   return h;

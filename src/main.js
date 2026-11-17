@@ -17,37 +17,37 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.55;
+renderer.toneMappingExposure = 0.52;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-// Light aerial haze: horizon clouds fade out, the palace (~800 m) stays crisp.
-scene.fog = new THREE.FogExp2('#c3d4ea', 0.00013);
+// Aerial haze: the palace (~1.5 km) sits in blue distance, the pillars stay crisp.
+scene.fog = new THREE.FogExp2('#b9cde8', 0.00032);
 
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.5, 14000);
 // Title screen shows the hero framing; entering drops the player on the landing.
 camera.position.set(...HERO.pos);
 camera.lookAt(...HERO.look);
 
-// ---------- Sky & light: high sun from the upper left, clear blue sky ----------
+// ---------- Sky & light: high sun ahead and to the right (facades in blue shade, rim-lit cloud) ----------
 const sky = new Sky();
 sky.scale.setScalar(16000);
 const su = sky.material.uniforms;
 su.turbidity.value = 2.2; su.rayleigh.value = 3; su.mieCoefficient.value = 0.002; su.mieDirectionalG.value = 0.8;
-const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(40), THREE.MathUtils.degToRad(255));
+const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(41), THREE.MathUtils.degToRad(123));
 su.sunPosition.value.copy(sunDir);
 
 // Visible sky: a simple gradient dome (clear blue overhead, haze at the horizon).
 // The physical Sky above only feeds the environment lighting.
 const dome = new THREE.Mesh(new THREE.SphereGeometry(12000, 32, 16), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
-  uniforms: { horizon: { value: new THREE.Color('#d3e1f0') }, mid: { value: new THREE.Color('#8fb6e3') }, zenith: { value: new THREE.Color('#3f78c2') } },
+  uniforms: { horizon: { value: new THREE.Color('#d3e1f0') }, mid: { value: new THREE.Color('#79a8de') }, zenith: { value: new THREE.Color('#386fbe') } },
   vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w; }',
   fragmentShader: `uniform vec3 horizon, mid, zenith; varying vec3 vDir;
     void main(){ float e = max(vDir.y, 0.0);
-      vec3 c = mix(horizon, mid, smoothstep(0.0, 0.26, e)); c = mix(c, zenith, smoothstep(0.26, 0.9, e));
+      vec3 c = mix(horizon, mid, smoothstep(0.0, 0.2, e)); c = mix(c, zenith, smoothstep(0.2, 0.85, e));
       gl_FragColor = vec4(c, 1.0); }`,
 }));
 dome.renderOrder = -1;
@@ -56,16 +56,17 @@ scene.add(dome);
 const pmrem = new THREE.PMREMGenerator(renderer);
 const skyScene = new THREE.Scene(); skyScene.add(sky.clone());
 scene.environment = pmrem.fromScene(skyScene).texture;
-scene.environmentIntensity = 0.45;
+scene.environmentIntensity = 0.2;
 
-const sun = new THREE.DirectionalLight('#fff3e2', 3.2);
+const sun = new THREE.DirectionalLight('#fff1dc', 3.6);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
-Object.assign(sun.shadow.camera, { left: -400, right: 400, top: 400, bottom: -400, near: 1, far: 2400 });
+Object.assign(sun.shadow.camera, { left: -320, right: 320, top: 320, bottom: -320, near: 1, far: 2600 });
 sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.4;
+sun.shadow.normalBias = 0.15;
 scene.add(sun, sun.target);
-scene.add(new THREE.HemisphereLight('#bcd6ff', '#8a96aa', 0.4));
+// Sky fill from above, bright bounce off the cloud sea from below (lights soffits and shaded facades).
+scene.add(new THREE.HemisphereLight('#a9c8ff', '#e9e4da', 0.7));
 
 // ---------- World ----------
 // Volumetric clouds by default; ?clouds=mesh keeps the old opaque mesh clouds.
@@ -112,7 +113,7 @@ renderer.setAnimationLoop(() => {
   player.update(dt);
 
   // Shadow frustum sits a little ahead of the camera, where the eye looks.
-  camera.getWorldDirection(shadowCenter).setY(0).normalize().multiplyScalar(300).add(camera.position);
+  camera.getWorldDirection(shadowCenter).setY(0).normalize().multiplyScalar(230).add(camera.position);
   sun.target.position.copy(shadowCenter);
   sun.position.copy(shadowCenter).addScaledVector(sunDir, 1100);
 

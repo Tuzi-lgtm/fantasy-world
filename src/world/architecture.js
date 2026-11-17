@@ -5,9 +5,9 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 // Palette + materials
 // ---------------------------------------------------------------------------
 export const COL = {
-  marble: '#d6d0c2', marbleDark: '#bdb5a4', red: '#8a2318', column: '#a52a1c',
+  marble: '#dad5c8', marbleDark: '#bcb5a5', red: '#8a3220', column: '#bd4a2b',
   teal: '#2b5c5e', tealDark: '#1d3f42', gold: '#c99b3b', soffit: '#3d5f5c',
-  ridge: '#a8771c', plaque: '#1c2f5a', timber: '#9c3a22', timberDark: '#5e2216', slateRidge: '#2a323c',
+  ridge: '#a8771c', plaque: '#1c2f5a', timber: '#cc6238', timberDark: '#7a3320', slateRidge: '#262d36', rafter: '#96452a',
 };
 
 function canvasTex(w, h, draw) {
@@ -31,8 +31,8 @@ const tileTex = canvasTex(64, 64, (g, w, h) => {
 
 // Lattice doors, one bay per texture width.
 const latticeTex = canvasTex(128, 256, (g, w, h) => {
-  g.fillStyle = '#5c160f'; g.fillRect(0, 0, w, h);
-  g.strokeStyle = '#c9963a'; g.lineWidth = 3;
+  g.fillStyle = '#7a2e1e'; g.fillRect(0, 0, w, h);
+  g.strokeStyle = '#b86a3a'; g.lineWidth = 3;
   g.strokeRect(8, 8, w - 16, h - 16);
   g.save(); g.beginPath(); g.rect(14, 14, w - 28, h * 0.62); g.clip();
   g.lineWidth = 2;
@@ -43,6 +43,18 @@ const latticeTex = canvasTex(128, 256, (g, w, h) => {
   g.restore();
   g.strokeRect(14, h * 0.7, w - 28, h * 0.24);
 });
+
+// Overlapping scales (bump map for the carved dragons).
+const scaleTex = canvasTex(64, 64, (g, w, h) => {
+  g.fillStyle = '#808080'; g.fillRect(0, 0, w, h);
+  for (let r = -1; r < 3; r++) for (let c = -1; c < 3; c++) {
+    const x = c * 32 + (r % 2 ? 16 : 0), y = r * 32;
+    const gr = g.createRadialGradient(x + 16, y + 6, 2, x + 16, y + 6, 26);
+    gr.addColorStop(0, '#f0f0f0'); gr.addColorStop(0.8, '#909090'); gr.addColorStop(1, '#202020');
+    g.fillStyle = gr; g.beginPath(); g.arc(x + 16, y + 6, 24, 0, Math.PI); g.fill();
+  }
+});
+scaleTex.colorSpace = THREE.NoColorSpace;
 
 export const paving = canvasTex(256, 256, (g, w, h) => {
   g.fillStyle = '#8f8a80'; g.fillRect(0, 0, w, h);
@@ -61,7 +73,8 @@ const MATS = {
   lattice: new THREE.MeshStandardMaterial({ map: latticeTex, roughness: 0.7 }),
   yellow: new THREE.MeshStandardMaterial({ map: tileTex, color: '#e3a92b', roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide }),
   green: new THREE.MeshStandardMaterial({ map: tileTex, color: '#3f8a5c', roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide }),
-  slate: new THREE.MeshStandardMaterial({ map: tileTex, color: '#55667a', roughness: 0.5, metalness: 0.1, side: THREE.DoubleSide }),
+  slate: new THREE.MeshStandardMaterial({ map: tileTex, color: '#46535f', roughness: 0.55, metalness: 0.1, side: THREE.DoubleSide }),
+  carved: new THREE.MeshStandardMaterial({ color: '#e6e2d8', roughness: 0.62, bumpMap: scaleTex, bumpScale: 2.5 }),
   blue: new THREE.MeshStandardMaterial({ map: tileTex, color: '#3c5f9e', roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide }),
 };
 
@@ -82,6 +95,8 @@ function paint(g, hex) {
   g.setAttribute('color', new THREE.BufferAttribute(a, 3));
   return g;
 }
+
+export { paint };
 
 export class Kit {
   constructor() { this.parts = {}; }
@@ -108,7 +123,7 @@ export function hipRoof(kit, o) {
   const { W, D, H, t1 = 1, color = 'yellow', x = 0, y = 0, z = 0, inner, rotY = 0 } = o;
   const R = Math.max(o.R ?? W - D * 0.85, 0);
   const lift = o.lift ?? D * 0.16, flare = o.flare ?? D * 0.07, thk = o.thk ?? D * 0.05;
-  const ridgeCol = color === 'slate' ? COL.slateRidge : COL.ridge, soffitCol = color === 'slate' ? COL.timber : COL.soffit;
+  const ridgeCol = color === 'slate' ? COL.slateRidge : COL.ridge, soffitCol = color === 'slate' ? COL.rafter : COL.soffit;
   const M = 12, N = 24, tileW = o.tileW ?? Math.max(D * 0.04, 0.6), slant = Math.hypot(D, H);
   const m4 = new THREE.Matrix4().makeRotationY(rotY).setPosition(x, y, z);
 
@@ -177,328 +192,252 @@ export function hipRoof(kit, o) {
   return { topY: y + H * Math.pow(t1, 1.7), hx, hz };
 }
 
-// ---------------------------------------------------------------------------
-// Hall: plinth, colonnade, lattice front, bracket band, single/double hip roof.
-// (x, y, z) = centre of the plinth bottom. Returns total height.
-// ---------------------------------------------------------------------------
-export function hall(kit, o) {
-  const { x = 0, y = 0, z = 0, w, d, colH, bays = 9, double = true, roof = 'yellow', plaque = true, passage = 0 } = o;
-  const bw = w / bays, cr = bw * 0.1, nd = Math.max(2, Math.round(d / bw)), bd = d / nd;
-  const ph = o.plinthH ?? colH * 0.12, P = bw * 0.6;
-  kit.box(w + 2 * P, ph, d + 2 * P, x, y + ph / 2, z, COL.marble);
-  kit.box(w + 2 * P + 0.6, ph * 0.18, d + 2 * P + 0.6, x, y + ph * 0.91, z, COL.marbleDark);
-  const y0 = y + ph;
-
-  // columns
-  const col = (cx, cz) => kit.add('paint', paint(
-    new THREE.CylinderGeometry(cr, cr * 1.06, colH, 10).translate(x + cx, y0 + colH / 2, z + cz), COL.column));
-  for (let i = 0; i <= bays; i++) for (const s of [-1, 1]) col(-w / 2 + i * bw, s * d / 2);
-  for (let j = 1; j < nd; j++) for (const s of [-1, 1]) col(s * w / 2, -d / 2 + j * bd);
-
-  // inner walls + lattice doors on the front
-  const iw = w - bw * 1.1, id = d - bd * 1.1;
-  if (passage) {   // walk-through gate hall: open centre bay
-    const sw = (iw - passage) / 2, sx = passage / 2 + sw / 2;
-    for (const sg of [-1, 1]) {
-      kit.box(sw, colH, id, x + sg * sx, y0 + colH / 2, z, COL.red);
-      for (const fz of [1, -1]) {
-        const lat = new THREE.PlaneGeometry(sw - 0.2, colH * 0.92).translate(x + sg * sx, y0 + colH * 0.46, z + fz * (id / 2 + 0.05));
-        if (fz < 0) lat.rotateY(0);
-        const uv = lat.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * Math.max(1, Math.round((bays - 1) / 2)));
-        kit.add('lattice', lat);
-      }
-    }
-    kit.box(passage, colH * 0.25, id, x, y0 + colH * 0.875, z, COL.red);
-  } else {
-    kit.box(iw, colH, id, x, y0 + colH / 2, z, COL.red);
-    const lat = new THREE.PlaneGeometry(iw - 0.2, colH * 0.92).translate(x, y0 + colH * 0.46, z + id / 2 + 0.05);
-    const uv = lat.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * (bays - 1));
-    kit.add('lattice', lat);
-  }
-
-  // bracket band (architrave + dougong layer)
-  const bh = colH * 0.3, yb = y0 + colH;
-  kit.box(w + cr * 2.4, bh * 0.35, d + cr * 2.4, x, yb + bh * 0.175, z, COL.teal);
-  kit.box(w + cr * 2.6, bh * 0.06, d + cr * 2.6, x, yb + bh * 0.33, z, COL.gold);
-  kit.box(w + bw * 0.5, bh * 0.65, d + bw * 0.5, x, yb + bh * 0.675, z, COL.tealDark);
-  const yr = yb + bh;
-
-  const over = Math.min(bw * 1.1, colH * 0.45);
-  const W = w / 2 + over, D = d / 2 + over;
-  let top;
-  if (double) {
-    const sk = hipRoof(kit, { W, D, H: D * 0.55, t1: 0.42, color: roof, x, y: yr, z, inner: [w / 2 + bw * 0.25, d / 2 + bw * 0.25] });
-    const ux = sk.hx + 0.2, uz = sk.hz + 0.2, uh = colH * 0.42;
-    const yw = sk.topY;
-    kit.box(ux * 2, uh + (sk.topY - yr), uz * 2, x, yr + (uh + sk.topY - yr) / 2, z, COL.red);
-    kit.box(ux * 2 + 0.6, uh * 0.35, uz * 2 + 0.6, x, yw + uh - uh * 0.175 + uh * 0.35, z, COL.teal);
-    if (plaque) {
-      kit.box(bw * 1.3, uh * 0.75, 0.5, x, yw + uh * 0.55, z + uz + 0.3, COL.gold);
-      kit.box(bw * 1.1, uh * 0.6, 0.6, x, yw + uh * 0.55, z + uz + 0.35, COL.plaque);
-    }
-    const y2 = yw + uh + uh * 0.35;
-    const o2 = over * 0.9, W2 = ux + o2, D2 = uz + o2;
-    top = hipRoof(kit, { W: W2, D: D2, H: D2 * 0.7, color: roof, x, y: y2, z, inner: [ux, uz] }).topY;
-  } else {
-    top = hipRoof(kit, { W, D, H: D * 0.7, color: roof, x, y: yr, z, inner: [w / 2 + bw * 0.25, d / 2 + bw * 0.25] }).topY;
-  }
-  return top - y;
-}
-
-// Pagoda: stacked storeys, each with a skirt roof, full roof on top.
-export function pagoda(kit, { x = 0, y = 0, z = 0, w, floors = 5, colH, roof = 'green' }) {
-  kit.box(w * 1.5, colH * 0.3, w * 1.5, x, y + colH * 0.15, z, COL.marble);
-  let yy = y + colH * 0.3, s = w;
-  for (let f = 0; f < floors; f++) {
-    const h = f === 0 ? colH : colH * 0.6;
-    kit.box(s, h, s, x, yy + h / 2, z, COL.red);
-    for (const cx of [-1, 1]) for (const cz of [-1, 1])
-      kit.add('paint', paint(new THREE.CylinderGeometry(s * 0.04, s * 0.04, h, 8).translate(x + cx * s / 2, yy + h / 2, z + cz * s / 2), COL.column));
-    kit.box(s * 1.06, h * 0.18, s * 1.06, x, yy + h + h * 0.09, z, COL.teal);
-    yy += h * 1.18;
-    const D = s / 2 + s * 0.28;
-    if (f === floors - 1) {
-      hipRoof(kit, { W: D, D, R: 0, H: D * 1.1, color: roof, x, y: yy, z, inner: [s / 2, s / 2] });
-    } else {
-      const sk = hipRoof(kit, { W: D, D, R: 0, H: D * 0.8, t1: 0.42, color: roof, x, y: yy, z, inner: [s / 2, s / 2] });
-      yy = sk.topY; s = Math.min(sk.hx * 2 + 0.4, s * 0.88);
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Balustrade between two base points (any direction, may slope).
-// ---------------------------------------------------------------------------
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const UP = new THREE.Vector3(0, 1, 0);
-export function rail(kit, a, b, { h = 1.6, sp = 2.2, spouts = null, color = COL.marble } = {}) {
+
+// Hexahedron from 8 corners: 0-3 at the +z end (x-,y- / x+,y- / x+,y+ / x-,y+), 4-7 at the -z end.
+export function hexa(c) {
+  const pos = [];
+  for (const [a, b, d, e] of [[0, 1, 2, 3], [5, 4, 7, 6], [4, 0, 3, 7], [1, 5, 6, 2], [3, 2, 6, 7], [4, 5, 1, 0]])
+    for (const i of [a, b, d, a, d, e]) pos.push(...c[i]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+// Slab centred on x whose half-width and top/bottom change linearly from zA (larger z) to zB.
+export function taperSlab(kit, { zA, zB, hwA, hwB, yA0, yA1, yB0 = yA0, yB1 = yA1, cx = 0, color = COL.marble }) {
+  return kit.add('paint', paint(hexa([
+    [cx - hwA, yA0, zA], [cx + hwA, yA0, zA], [cx + hwA, yA1, zA], [cx - hwA, yA1, zA],
+    [cx - hwB, yB0, zB], [cx + hwB, yB0, zB], [cx + hwB, yB1, zB], [cx - hwB, yB1, zB]]), color));
+}
+
+// Tube with a radius that varies along the curve (dragon bodies, trunks).
+export function tubeR(curve, segs, radial, rFn, uvRep = [1, 1]) {
+  const fr = curve.computeFrenetFrames(segs, false), pos = [], uv = [], idx = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs, P = curve.getPointAt(t), N = fr.normals[i], B = fr.binormals[i], r = rFn(t);
+    for (let j = 0; j <= radial; j++) {
+      const a = j / radial * Math.PI * 2, c = Math.cos(a), s = -Math.sin(a);
+      pos.push(P.x + r * (c * N.x + s * B.x), P.y + r * (c * N.y + s * B.y), P.z + r * (c * N.z + s * B.z));
+      uv.push(t * uvRep[0], j / radial * uvRep[1]);
+    }
+  }
+  for (let i = 1; i <= segs; i++) for (let j = 1; j <= radial; j++) {
+    const a = (radial + 1) * (i - 1) + (j - 1), b = (radial + 1) * i + (j - 1), c = (radial + 1) * i + j, d = (radial + 1) * (i - 1) + j;
+    idx.push(a, b, d, b, c, d);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Human-scale marble balustrade between two base points (any direction, may slope):
+// capped posts, two rails and a solid carved panel between them.
+// ---------------------------------------------------------------------------
+export function rail(kit, a, b, { h = 1.6, sp = 2.4, color = COL.marble } = {}) {
   const len = a.distanceTo(b); if (len < 0.5) return;
   const n = Math.max(1, Math.round(len / sp));
   for (let i = 0; i <= n; i++) {
     const p = a.clone().lerp(b, i / n);
-    kit.box(0.4, h, 0.4, p.x, p.y + h / 2, p.z, color);
-    kit.add('paint', paint(new THREE.IcosahedronGeometry(0.36, 0).scale(1, 1.25, 1).translate(p.x, p.y + h + 0.3, p.z), color));
-    if (spouts) kit.box(0.5, 0.5, 0.5, p.x + spouts.x * 0.9, p.y - 0.7, p.z + spouts.z * 0.9, COL.marbleDark);
+    kit.box(0.46, h, 0.46, p.x, p.y + h / 2, p.z, color);
+    kit.box(0.6, 0.12, 0.6, p.x, p.y + h + 0.06, p.z, color);
+    kit.add('paint', paint(new THREE.SphereGeometry(0.34, 8, 6).scale(1, 1.35, 1).translate(p.x, p.y + h + 0.5, p.z), color));
   }
-  for (const yy of [h * 0.85, h * 0.12]) {
-    const g = new THREE.BoxGeometry(0.28, 0.22, len);
-    const m = new THREE.Matrix4().lookAt(a, b, UP).setPosition(a.clone().lerp(b, 0.5).add(new THREE.Vector3(0, yy, 0)));
-    kit.add('paint', paint(g.applyMatrix4(m), color));
-  }
+  const m = new THREE.Matrix4().lookAt(a, b, UP), mid = a.clone().lerp(b, 0.5);
+  for (const [w, t, yy] of [[0.3, 0.2, h * 0.86], [0.14, h * 0.6, h * 0.45], [0.3, 0.2, h * 0.1]])
+    kit.add('paint', paint(new THREE.BoxGeometry(w, t, len).applyMatrix4(m.clone().setPosition(mid.x, mid.y + yy, mid.z)), color));
 }
-const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
-// Rectangle of rails at height y, with gaps on the front (+z) edge.
-function railRect(kit, x0, x1, z0, z1, y, gaps = [], spouts = false) {
-  const so = (dx, dz) => (spouts ? { x: dx, z: dz } : null);
-  rail(kit, V(x0, y, z0), V(x1, y, z0), { spouts: so(0, -1) });
-  rail(kit, V(x0, y, z0), V(x0, y, z1), { spouts: so(-1, 0) });
-  rail(kit, V(x1, y, z0), V(x1, y, z1), { spouts: so(1, 0) });
-  let x = x0;
-  for (const [g0, g1] of gaps) { rail(kit, V(x, y, z1), V(g0, y, z1), { spouts: so(0, 1) }); x = g1; }
-  rail(kit, V(x, y, z1), V(x1, y, z1), { spouts: so(0, 1) });
+// Architectural-scale timber railing (axis aligned, level): posts and three bars.
+export function fence(kit, a, b, { h, n, color = COL.timber }) {
+  const len = a.distanceTo(b), bar = h * 0.09, alongX = Math.abs(b.x - a.x) > Math.abs(b.z - a.z);
+  n = Math.max(1, n ?? Math.round(len / (h * 1.3)));
+  for (let i = 0; i <= n; i++) { const p = a.clone().lerp(b, i / n); kit.box(bar * 1.5, h, bar * 1.5, p.x, p.y + h / 2, p.z, color); }
+  const mid = a.clone().lerp(b, 0.5);
+  for (const yy of [0.95, 0.55, 0.14]) kit.box(alongX ? len : bar, bar, alongX ? bar : len, mid.x, mid.y + h * yy, mid.z, color);
+}
+const fenceRing = (kit, x, y, z, ex, ez, o) => {
+  fence(kit, V(x - ex, y, z + ez), V(x + ex, y, z + ez), o); fence(kit, V(x - ex, y, z - ez), V(x + ex, y, z - ez), o);
+  fence(kit, V(x - ex, y, z - ez), V(x - ex, y, z + ez), { ...o, n: o.nz ?? o.n }); fence(kit, V(x + ex, y, z - ez), V(x + ex, y, z + ez), { ...o, n: o.nz ?? o.n });
+};
+const column = (kit, x, y, z, r, h, hex = COL.column) =>
+  kit.add('paint', paint(new THREE.CylinderGeometry(r, r * 1.08, h, 8).translate(x, y + h / 2, z), hex));
+// Lattice-clad box: one door leaf per `nx` across the front and back.
+function latticeBox(kit, w, h, d, x, y, z, nx) {
+  const g = new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z), uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * nx);
+  kit.add('lattice', g);
+}
+// Fit colH so a builder's total height hits `height` (builders are linear in colH).
+const fitColH = (fn, o) => {
+  const m = (c) => fn(new Kit(), { ...o, height: undefined, colH: c }), h1 = m(1), h2 = m(2);
+  return 1 + (o.height - h1) / (h2 - h1);
+};
+
+// ---------------------------------------------------------------------------
+// Palace hall with explicit proportions (measured off the reference frame).
+// Body w x d on a marble plinth, columns colH, bracket band, then either one hip roof
+// ({roofH, R}) or a skirt roof + clerestory + upper hip roof ({skirt, upper}).
+// (x, y, z) = centre of the plinth bottom. Returns total height.
+// ---------------------------------------------------------------------------
+export function grandHall(kit, o) {
+  const { x = 0, y = 0, z = 0, w, d, colH, bays = 9, over, roof = 'slate', passage = 0, plaque = true } = o;
+  const bw = w / bays, nd = Math.max(2, Math.round(d / bw)), bd = d / nd, cr = Math.max(bw * 0.05, colH * 0.024);
+  const ph = o.plinth ?? colH * 0.09, ap = o.apron ?? bw * 0.35;
+  kit.box(w + 2 * ap + ph, ph * 0.5, d + 2 * ap + ph, x, y + ph * 0.25, z, COL.marbleDark);
+  kit.box(w + 2 * ap, ph * 0.5, d + 2 * ap, x, y + ph * 0.75, z, COL.marble);
+  const y0 = y + ph;
+  for (let i = 0; i <= bays; i++) for (const s of [-1, 1]) column(kit, x - w / 2 + i * bw, y0, z + s * d / 2, cr, colH);
+  for (let j = 1; j < nd; j++) for (const s of [-1, 1]) column(kit, x + s * w / 2, y0, z - d / 2 + j * bd, cr, colH);
+
+  // walls set back behind the colonnade, lattice doors front and back
+  const iw = w - bw * 0.9, id = d - bd * 0.9;
+  if (passage) {
+    const sw = (iw - passage) / 2, sx = passage / 2 + sw / 2;
+    for (const sg of [-1, 1]) latticeBox(kit, sw, colH, id, x + sg * sx, y0, z, Math.max(1, Math.round((bays - 1) / 2)));
+    kit.box(passage, colH * 0.22, id, x, y0 + colH * 0.89, z, COL.red);
+  } else latticeBox(kit, iw, colH, id, x, y0, z, bays - 1);
+
+  // architrave + stepped bracket band carrying the eave
+  const bh = o.band ?? colH * 0.28, yb = y0 + colH;
+  kit.box(w + cr * 2.4, bh * 0.3, d + cr * 2.4, x, yb + bh * 0.15, z, COL.teal);
+  kit.box(w + cr * 2.6, bh * 0.05, d + cr * 2.6, x, yb + bh * 0.31, z, COL.gold);
+  for (let k = 0; k < 3; k++) {
+    const e = over * (0.25 + 0.25 * k) * 2;
+    kit.box(w + e, bh * 0.22, d + e, x, yb + bh * (0.45 + 0.22 * k), z, k % 2 ? COL.timberDark : COL.tealDark);
+  }
+  const yr = yb + bh, W = w / 2 + over, D = d / 2 + over;
+  let top;
+  if (!o.skirt) {
+    top = hipRoof(kit, { W, D, R: o.R, H: o.roofH ?? D * 0.55, lift: o.lift, color: roof, x, y: yr, z, inner: [w / 2, d / 2] }).topY;
+  } else {
+    const sk = hipRoof(kit, { W, D, R: o.skirt.R, H: o.skirt.H, t1: o.skirt.t1, lift: o.lift, color: roof, x, y: yr, z, inner: [w / 2, d / 2] });
+    const u = o.upper, ux = sk.hx + 0.3, uz = sk.hz + 0.3, yw = sk.topY, wh = u.wall;
+    latticeBox(kit, ux * 2, wh * 0.72, uz * 2, x, yw, z, bays - 2);
+    const un = Math.max(3, bays - 2);
+    for (let i = 0; i <= un; i++) for (const s of [-1, 1]) column(kit, x - ux + i * 2 * ux / un, yw, z + s * uz, cr * 0.8, wh * 0.72);
+    kit.box(ux * 2 + cr * 2, wh * 0.1, uz * 2 + cr * 2, x, yw + wh * 0.77, z, COL.teal);
+    kit.box(ux * 2 + u.over * 0.8, wh * 0.18, uz * 2 + u.over * 0.8, x, yw + wh * 0.91, z, COL.tealDark);
+    if (plaque) {
+      kit.box(bw * 0.8, wh * 0.62, 0.8, x, yw + wh * 0.4, z + uz + 0.5, COL.gold);
+      kit.box(bw * 0.68, wh * 0.5, 0.9, x, yw + wh * 0.4, z + uz + 0.6, COL.plaque);
+    }
+    top = hipRoof(kit, { W: ux + u.over, D: uz + u.over, R: u.R, H: u.H, lift: u.lift, color: roof, x, y: yw + wh, z, inner: [ux, uz] }).topY;
+  }
+  return top - y;
 }
 
 // ---------------------------------------------------------------------------
-// Composite structures
+// Wide multi-storey block: equal storeys, each under a thin skirt eave, barely
+// stepping in; railed galleries on the upper storeys. Eaves land every `pitch`.
 // ---------------------------------------------------------------------------
-// Three-tier marble terrace (xumizuo) with grand central stair.
-export function terrace(kit, { cx, cz, w, d, tiers, tierH, inset, G, stairW, stairTopZ, stairLowZ }) {
-  for (let k = 0; k < tiers; k++) {
-    const hx = w / 2 - k * inset, hz = d / 2 - k * inset, y0 = G + k * tierH, y1 = y0 + tierH;
-    kit.box(hx * 2, tierH * 0.12, hz * 2 + 0.01, cx, y0 + tierH * 0.06, cz, COL.marbleDark);           // base moulding
-    kit.box(hx * 2 - 1.2, tierH * 0.76, hz * 2 - 1.2, cx, y0 + tierH * 0.5, cz, COL.marble);           // recessed waist
-    kit.box(hx * 2 + 0.8, tierH * 0.12, hz * 2 + 0.8, cx, y1 - tierH * 0.06, cz, COL.marble);         // top lip
-    railRect(kit, cx - hx + 0.6, cx + hx - 0.6, cz - hz + 0.6, cz + hz - 0.6, y1, [[-stairW / 2 - 0.5, stairW / 2 + 0.5]], true);
-  }
-  // grand stair: solid steps + central carved slab + flanking rails
-  const rise = (tiers * tierH);
-  const n = Math.round(rise / 0.35), run = (stairLowZ - stairTopZ) / n;
-  for (let i = 0; i < n; i++) {
-    const h = (n - i) * (rise / n);
-    kit.box(stairW, h, run + 0.02, cx, G + h / 2, stairTopZ + (i + 0.5) * run, i % 2 ? COL.marble : COL.marbleDark);
-  }
-  const L = Math.hypot(stairLowZ - stairTopZ, rise), ang = Math.atan2(rise, stairLowZ - stairTopZ);
-  const slab = new THREE.BoxGeometry(stairW * 0.32, 0.5, L).rotateX(ang)
-    .translate(cx, G + rise / 2 + 0.2, (stairTopZ + stairLowZ) / 2);
-  kit.add('paint', paint(slab, COL.marbleDark));
-  for (const s of [-1, 1]) {
-    const xr = cx + s * (stairW / 2 - 0.3);
-    rail(kit, V(xr, G + rise, stairTopZ), V(xr, G, stairLowZ));
-  }
-}
-
-// Fortress gate (Meridian-gate style): red masonry base with arched tunnels.
-export function gateBase(kit, { z, w, d, h, tunnels, G }) {
-  const s = new THREE.Shape();
-  s.moveTo(-w / 2, 0);
-  for (const t of [...tunnels].sort((a, b) => a.x - b.x)) {
-    const r = t.w / 2;
-    s.lineTo(t.x - r, 0); s.lineTo(t.x - r, t.h - r);
-    s.absarc(t.x, t.h - r, r, Math.PI, 0, true);
-    s.lineTo(t.x + r, 0);
-  }
-  s.lineTo(w / 2, 0); s.lineTo(w / 2, h); s.lineTo(-w / 2, h); s.lineTo(-w / 2, 0);
-  const g = new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: false, curveSegments: 16 })
-    .translate(0, G, z - d / 2);
-  kit.add('paint', paint(g, COL.red));
-  kit.box(w + 1.5, 1.6, d + 1.5, 0, G + h + 0.8, z, COL.marble);
-  kit.box(w + 0.6, 0.8, d + 0.6, 0, G + h - 0.4, z, COL.marbleDark);
-  railRect(kit, -w / 2, w / 2, z - d / 2, z + d / 2, G + h + 1.6);
-}
-
-// Courtyard wall with tiled cap, axis aligned (from (x0,z0) to (x1,z1)).
-export function wall(kit, x0, z0, x1, z1, { h, t, G, roof = 'yellow' }) {
-  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
-  const len = alongX ? Math.abs(x1 - x0) : Math.abs(z1 - z0);
-  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-  const [bw, bd] = alongX ? [len, t] : [t, len];
-  kit.box(bw + 0.4, 1.4, bd + 0.4, cx, G + 0.7, cz, COL.marble);
-  kit.box(bw, h, bd, cx, G + h / 2, cz, COL.red);
-  const W = len / 2 + 1.2, D = t / 2 + 1.4;
-  kit.box(alongX ? len + 0.6 : t + 0.6, 1.2, alongX ? t + 0.6 : len + 0.6, cx, G + h + 0.6, cz, COL.teal);
-  hipRoof(kit, { W, D, R: W - 1.5, H: D * 0.8, lift: D * 0.1, x: cx, y: G + h + 1.2, z: cz, rotY: alongX ? 0 : Math.PI / 2, inner: [len / 2, t / 2] });
-}
-
-// Arched marble bridge spanning the river along Z.
-export function bridge(kit, { x, w, z, len, rise, G, bed }) {
-  const s = new THREE.Shape(), half = len / 2, r = 6;
-  s.moveTo(-half, 0);
-  for (let i = 1; i <= 16; i++) { const u = -half + len * i / 16; s.lineTo(u, rise * Math.sin(Math.PI * i / 16)); }
-  s.lineTo(half, bed - G); s.lineTo(r, bed - G);
-  s.absarc(0, bed - G, r, 0, Math.PI, false);
-  s.lineTo(-half, bed - G); s.lineTo(-half, 0);
-  const g = new THREE.ExtrudeGeometry(s, { depth: w, bevelEnabled: false, curveSegments: 12 })
-    .rotateY(Math.PI / 2).translate(x - w / 2, G, z);
-  kit.add('paint', paint(g, COL.marble));
-  for (const sx of [-1, 1]) {
-    const xr = x + sx * (w / 2 - 0.3);
-    for (let i = 0; i < 8; i++) {
-      const u0 = -half + len * i / 8, u1 = -half + len * (i + 1) / 8;
-      const y0 = rise * Math.sin(Math.PI * i / 8), y1 = rise * Math.sin(Math.PI * (i + 1) / 8);
-      rail(kit, V(xr, G + y0, z - u0), V(xr, G + y1, z - u1), { h: 1.3, sp: 3.3 });
-    }
-  }
-}
-
-// River banks: retaining walls + balustrades, gaps for bridges.
-export function riverBanks(kit, { z, w, x0, x1, bridges, G, bed }) {
-  for (const s of [-1, 1]) {
-    const zb = z + s * (w / 2 + 1);
-    kit.box(x1 - x0, G - bed, 2, (x0 + x1) / 2, (G + bed) / 2, zb, COL.marbleDark);
-    let x = x0;
-    for (const b of [...bridges].sort((a, c) => a.x - c.x)) {
-      rail(kit, V(x, G, zb), V(b.x - b.w / 2 - 0.5, G, zb), { h: 1.3 }); x = b.x + b.w / 2 + 0.5;
-    }
-    rail(kit, V(x, G, zb), V(x1, G, zb), { h: 1.3 });
-  }
-}
-
-// Monumental paifang: four pillars, three openings, tiled roofs.
-export function paifang(kit, { z, center, side, pillar: p, h, G }) {
-  const xi = center / 2 + p / 2, xo = center / 2 + p + side + p / 2, ho = h * 0.72;
-  for (const s of [-1, 1]) {
-    for (const [px, ph] of [[s * xi, h], [s * xo, ho]]) {
-      kit.box(p * 1.8, 5, p * 1.8, px, G + 2.5, z, COL.marble);
-      kit.box(p, ph, p, px, G + ph / 2, z, COL.column);
-    }
-    // side span
-    const sx = s * (xi + xo) / 2, sw = xo - xi;
-    kit.box(sw, 2.2, p * 0.8, sx, G + ho - 4, z, COL.teal);
-    kit.box(sw, 0.4, p * 0.85, sx, G + ho - 2.7, z, COL.gold);
-    kit.box(sw + p, 1.6, p * 1.3, sx, G + ho - 1.6, z, COL.tealDark);
-    hipRoof(kit, { W: sw / 2 + p * 0.9, D: p * 1.3, H: p * 1.2, color: 'blue', x: sx, y: G + ho - 0.8, z, inner: [sw / 2, p * 0.6] });
-  }
-  // centre span, plaque, roof
-  kit.box(2 * xi, 3, p * 0.8, 0, G + h - 6, z, COL.teal);
-  kit.box(2 * xi, 0.5, p * 0.85, 0, G + h - 4.3, z, COL.gold);
-  kit.box(2 * xi + p, 2, p * 1.4, 0, G + h - 3, z, COL.tealDark);
-  kit.box(center * 0.5, 4.5, 0.6, 0, G + h - 9.8, z + p * 0.42, COL.gold);
-  kit.box(center * 0.45, 3.8, 0.7, 0, G + h - 9.8, z + p * 0.45, COL.plaque);
-  hipRoof(kit, { W: xi + p * 1.2, D: p * 1.5, H: p * 1.5, color: 'blue', x: 0, y: G + h - 2, z, inner: [xi, p * 0.7] });
-}
-
-// Open timber tower (pillar-top pavilion), proportioned from the reference:
-// balcony deck wider than the storey, thin wide roofs (~0.2 x width overhang),
-// short upper storeys, optional bracket corbel down to a narrower support.
-export function tower(kit, { x = 0, y = 0, z = 0, w, floors = 3, colH, roof = 'slate', corbel = 0 }) {
-  if (corbel) {
-    const h = w * 0.16, steps = 4;
-    for (let i = 0; i < steps; i++) {   // stepped bracket tiers, each wider than the last
-      const t = (i + 1) / steps, ww = corbel + (w * 1.12 - corbel) * t;
-      kit.box(ww, h / steps * 0.55, ww, x, y + h * (i + 0.72) / steps, z, i % 2 ? COL.timberDark : COL.timber);
-      kit.box(ww * 0.96, h / steps * 0.45, ww * 0.96, x, y + h * (i + 0.22) / steps, z, COL.tealDark);
-    }
-    y += h;
-  }
-  let yy = y, s = w;
-  for (let f = 0; f < floors; f++) {
-    const h = f === 0 ? colH : colH * 0.62;
-    const bal = s * 1.12, dk = Math.max(s * 0.022, 0.8);
-    kit.box(bal, dk, bal, x, yy + dk / 2, z, COL.timberDark);
-    kit.box(bal + 0.4, dk * 0.35, bal + 0.4, x, yy + dk * 0.15, z, COL.timber);
-    yy += dk;
-    const e = bal / 2 - 0.3, r = { color: COL.timber, h: 1.4, sp: 1.8 };
-    rail(kit, V(x - e, yy, z - e), V(x + e, yy, z - e), r); rail(kit, V(x - e, yy, z + e), V(x + e, yy, z + e), r);
-    rail(kit, V(x - e, yy, z - e), V(x - e, yy, z + e), r); rail(kit, V(x + e, yy, z - e), V(x + e, yy, z + e), r);
-    const n = Math.max(3, Math.round(s / 15)), cr = Math.max(0.5, s * 0.009);
-    for (let i = 0; i <= n; i++) for (const sd of [-1, 1]) {
-      const t = -s / 2 + s * i / n;
-      for (const [cx, cz] of [[t, sd * s / 2], [sd * s / 2, t]])
-        kit.add('paint', paint(new THREE.CylinderGeometry(cr, cr * 1.1, h, 8).translate(x + cx, yy + h / 2, z + cz), COL.column));
-    }
-    // horizontal tie beams give the open red timber frame of the reference
-    for (const yb of [h * 0.55, h * 0.92]) {
-      kit.box(s, h * 0.05, 0.6, x, yy + yb, z + s / 2, COL.timber); kit.box(s, h * 0.05, 0.6, x, yy + yb, z - s / 2, COL.timber);
-      kit.box(0.6, h * 0.05, s, x + s / 2, yy + yb, z, COL.timber); kit.box(0.6, h * 0.05, s, x - s / 2, yy + yb, z, COL.timber);
-    }
-    const core = new THREE.BoxGeometry(s * 0.8, h, s * 0.8).translate(x, yy + h / 2, z);
-    const uv = core.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * Math.max(3, Math.round(s / 12)));
-    kit.add('lattice', core);
-    kit.box(s * 1.03, h * 0.1, s * 1.03, x, yy + h + h * 0.05, z, COL.timber);
-    yy += h * 1.1;
-    const D = s / 2 + s * 0.22;
-    if (f === floors - 1) {
-      hipRoof(kit, { W: D, D, R: D * 0.45, H: D * 0.42, color: roof, x, y: yy, z, inner: [s / 2, s / 2], lift: D * 0.12 });
-    } else {
-      const sk = hipRoof(kit, { W: D, D, R: 0, H: D * 0.36, t1: 0.42, color: roof, x, y: yy, z, inner: [s / 2, s / 2], lift: D * 0.12 });
-      yy = sk.topY; s = s * 0.84;
-    }
-  }
-}
-
-// Stacked multi-storey palace (the reference's central building): each storey
-// narrows (~0.82) under its own thin skirt roof; balconies on the upper storeys.
-export function stackedHall(kit, { x = 0, y = 0, z = 0, w, d, floors = 4, colH, roof = 'slate' }) {
-  const ph = colH * 0.15;
-  kit.box(w + colH * 1.2, ph, d + colH * 1.2, x, y + ph / 2, z, COL.marble);
+export function tieredBlock(kit, { x = 0, y = 0, z = 0, w, d, floors = 4, pitch, over, bays = 21, roof = 'slate', topH }) {
+  const rise = pitch * 0.13, band = pitch * 0.1, dk = pitch * 0.035, ph = pitch * 0.06;
+  kit.box(w + over * 1.6, ph, d + over * 1.6, x, y + ph / 2, z, COL.marble);
   let yy = y + ph, sw = w, sd = d;
   for (let f = 0; f < floors; f++) {
-    const h = f === 0 ? colH : colH * 0.7, bw = 12;
-    if (f > 0) {
-      const e = [sw / 2 + 2, sd / 2 + 2], r = { color: COL.timber, h: 1.4, sp: 2 };
-      kit.box(sw + 4, 0.8, sd + 4, x, yy + 0.4, z, COL.timberDark); yy += 0.8;
-      rail(kit, V(x - e[0], yy, z + e[1]), V(x + e[0], yy, z + e[1]), r); rail(kit, V(x - e[0], yy, z - e[1]), V(x + e[0], yy, z - e[1]), r);
-      rail(kit, V(x - e[0], yy, z - e[1]), V(x - e[0], yy, z + e[1]), r); rail(kit, V(x + e[0], yy, z - e[1]), V(x + e[0], yy, z + e[1]), r);
+    const hh = pitch - rise - band - (f ? dk : ph), bw = sw / bays, nz = Math.max(2, Math.round(sd / bw));
+    const cr = Math.max(bw * 0.05, hh * 0.03);
+    if (f) {   // gallery deck + railing
+      kit.box(sw + over * 0.9, dk, sd + over * 0.9, x, yy + dk / 2, z, COL.timberDark); yy += dk;
+      fenceRing(kit, x, yy, z, sw / 2 + over * 0.4, sd / 2 + over * 0.4, { h: pitch * 0.1, n: bays * 2, nz: nz * 2 });
     }
-    const nx = Math.max(3, Math.round(sw / bw)), nz = Math.max(2, Math.round(sd / bw));
-    const col = (cx, cz) => kit.add('paint', paint(new THREE.CylinderGeometry(1.1, 1.2, h, 8).translate(x + cx, yy + h / 2, z + cz), COL.column));
-    for (let i = 0; i <= nx; i++) for (const s2 of [-1, 1]) col(-sw / 2 + sw * i / nx, s2 * sd / 2);
-    for (let j = 1; j < nz; j++) for (const s2 of [-1, 1]) col(s2 * sw / 2, -sd / 2 + sd * j / nz);
-    const core = new THREE.BoxGeometry(sw - 3, h, sd - 3).translate(x, yy + h / 2, z);
-    const uv = core.attributes.uv;
-    for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * nx);
-    kit.add('lattice', core);
-    kit.box(sw + 2, h * 0.12, sd + 2, x, yy + h + h * 0.06, z, COL.timber);
-    yy += h * 1.12;
-    const over = colH * 0.55, W = sw / 2 + over, D = sd / 2 + over;
+    for (let i = 0; i <= bays; i++) for (const s of [-1, 1]) column(kit, x - sw / 2 + sw * i / bays, yy, z + s * sd / 2, cr, hh);
+    for (let j = 1; j < nz; j++) for (const s of [-1, 1]) column(kit, x + s * sw / 2, yy, z - sd / 2 + sd * j / nz, cr, hh);
+    latticeBox(kit, sw - bw * 0.5, hh, sd - bw * 0.5, x, yy, z, bays);
+    kit.box(sw, hh * 0.05, 0.8, x, yy + hh * 0.52, z + sd / 2, COL.timber);
+    kit.box(sw + cr * 2, band * 0.4, sd + cr * 2, x, yy + hh + band * 0.2, z, COL.tealDark);
+    kit.box(sw + over * 0.8, band * 0.6, sd + over * 0.8, x, yy + hh + band * 0.7, z, COL.timberDark);
+    yy += hh + band;
+    const W = sw / 2 + over, D = sd / 2 + over;
     if (f === floors - 1) {
-      hipRoof(kit, { W, D, H: D * 0.55, color: roof, x, y: yy, z, inner: [sw / 2, sd / 2], lift: D * 0.12 });
+      yy = hipRoof(kit, { W, D, H: topH ?? D * 0.3, color: roof, x, y: yy, z, inner: [sw / 2, sd / 2], lift: D * 0.12 }).topY;
     } else {
-      const sk = hipRoof(kit, { W, D, H: D * 0.42, t1: 0.42, color: roof, x, y: yy, z, inner: [sw / 2, sd / 2], lift: D * 0.12 });
-      yy = sk.topY; sw *= 0.82; sd *= 0.85;
+      const t1 = (over + 0.5) / (0.85 * D);   // tuck the skirt back to the wall line
+      const sk = hipRoof(kit, { W, D, H: rise / Math.pow(t1, 1.7), t1, color: roof, x, y: yy, z, inner: [sw / 2, sd / 2], lift: D * 0.1 });
+      yy = sk.topY; sw = sk.hx * 2; sd = sk.hz * 2;
     }
   }
   return yy - y;
 }
 
-export { MATS };
+// ---------------------------------------------------------------------------
+// Open timber pavilion tower (pillar tops, flank pavilions): galleried deck wider
+// than the storey, tall two-level first storey, short upper storeys, thin roofs with
+// a wide overhang (0.28 x width), bracket bands; optional corbel down to a support.
+// Pass `height` to fit the storeys to a measured total. Returns total height.
+// ---------------------------------------------------------------------------
+export function tower(kit, o) {
+  const { x = 0, y = 0, z = 0, w, floors = 3, roof = 'slate', corbel = 0 } = o;
+  const bays = o.bays ?? (w > 60 ? 7 : w > 30 ? 5 : 3), colH = o.height ? fitColH(tower, o) : o.colH, bay0 = w / bays;
+  let yy = y, s = w;
+  if (corbel) {   // stepped bracket tiers flaring from the support to the deck
+    const h = w * 0.075, steps = 4;
+    for (let i = 0; i < steps; i++) {
+      const t = (i + 1) / steps, ww = corbel + (w * 1.1 - corbel) * t;
+      kit.box(ww, h / steps * 0.55, ww, x, yy + h * (i + 0.72) / steps, z, i % 2 ? COL.timberDark : COL.timber);
+      kit.box(ww * 0.95, h / steps * 0.45, ww * 0.95, x, yy + h * (i + 0.22) / steps, z, COL.tealDark);
+    }
+    yy += h;
+  }
+  const hr = colH * 0.12, band = colH * 0.09;
+  for (let f = 0; f < floors; f++) {
+    const h = f === 0 ? colH : colH * 0.42, nb = Math.max(1, Math.round(s / bay0)), bay = s / nb;
+    const bal = s + 2 * Math.min(bay * 0.45, s * 0.07), dk = colH * 0.035, cr = Math.max(bay * 0.045, h * 0.02);
+    kit.box(bal, dk, bal, x, yy + dk / 2, z, COL.timberDark);
+    kit.box(bal + dk * 0.6, dk * 0.4, bal + dk * 0.6, x, yy + dk * 0.8, z, COL.timber);
+    yy += dk;
+    fenceRing(kit, x, yy, z, bal / 2 - hr * 0.1, bal / 2 - hr * 0.1, { h: f ? hr * 0.8 : hr, n: nb * 3 });
+    for (let i = 0; i <= nb; i++) for (const sd of [-1, 1]) {
+      const t = -s / 2 + s * i / nb;
+      column(kit, x + t, yy, z + sd * s / 2, cr, h);
+      if (i && i < nb) column(kit, x + sd * s / 2, yy, z + t, cr, h);
+    }
+    // tie beams; the first storey has an upper gallery with its own railing
+    for (const yb of f ? [0.9] : [0.4, 0.92]) {
+      const bt = Math.max(h * 0.035, cr);
+      kit.box(s, bt, bt, x, yy + h * yb, z + s / 2, COL.timber); kit.box(s, bt, bt, x, yy + h * yb, z - s / 2, COL.timber);
+      kit.box(bt, bt, s, x + s / 2, yy + h * yb, z, COL.timber); kit.box(bt, bt, s, x - s / 2, yy + h * yb, z, COL.timber);
+    }
+    if (!f) fenceRing(kit, x, yy + h * 0.42, z, s / 2, s / 2, { h: hr * 0.8, n: nb * 3 });
+    latticeBox(kit, s * 0.7, h, s * 0.7, x, yy, z, nb);
+    kit.box(s + cr * 2, band * 0.3, s + cr * 2, x, yy + h + band * 0.15, z, COL.tealDark);
+    const ov = s * (o.over ?? 0.28);
+    for (let k = 0; k < 2; k++) kit.box(s + ov * (0.5 + 0.5 * k), band * 0.35, s + ov * (0.5 + 0.5 * k), x, yy + h + band * (0.475 + 0.35 * k), z, k ? COL.timberDark : COL.timber);
+    yy += h + band;
+    const D = s / 2 + ov;
+    if (f === floors - 1) {
+      yy = hipRoof(kit, { W: D, D, R: D * 0.4, H: D * 0.5, color: roof, x, y: yy, z, inner: [s / 2, s / 2], lift: D * 0.15 }).topY + D * 0.14;
+    } else {
+      yy = hipRoof(kit, { W: D, D, R: 0, H: D * 0.36, t1: 0.42, color: roof, x, y: yy, z, inner: [s / 2, s / 2], lift: D * 0.15 }).topY;
+      s *= 0.86;
+    }
+  }
+  return yy - y;
+}
+
+// Slender pagoda: stacked square storeys, each with a skirt roof, spire roof on top.
+export function pagoda(kit, o) {
+  const { x = 0, y = 0, z = 0, w, floors = 5, roof = 'slate' } = o, colH = o.height ? fitColH(pagoda, o) : o.colH;
+  kit.box(w * 1.5, colH * 0.3, w * 1.5, x, y + colH * 0.15, z, COL.marble);
+  let yy = y + colH * 0.3, s = w;
+  for (let f = 0; f < floors; f++) {
+    const h = f === 0 ? colH : colH * 0.6;
+    latticeBox(kit, s, h, s, x, yy, z, 2);
+    for (const cx of [-1, 1]) for (const cz of [-1, 1]) column(kit, x + cx * s / 2, yy, z + cz * s / 2, s * 0.05, h);
+    kit.box(s * 1.08, h * 0.18, s * 1.08, x, yy + h + h * 0.09, z, COL.tealDark);
+    yy += h * 1.18;
+    const D = s / 2 + s * 0.3;
+    if (f === floors - 1) {
+      yy = hipRoof(kit, { W: D, D, R: 0, H: D * 1.1, color: roof, x, y: yy, z, inner: [s / 2, s / 2] }).topY + D * 0.3;
+    } else {
+      const sk = hipRoof(kit, { W: D, D, R: 0, H: D * 0.8, t1: 0.42, color: roof, x, y: yy, z, inner: [s / 2, s / 2] });
+      yy = sk.topY; s *= 0.88;
+    }
+  }
+  return yy - y;
+}
