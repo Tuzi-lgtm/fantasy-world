@@ -17,7 +17,7 @@ const CORNER = 1.5;       // view distance / view depth at the corner of a wide 
 const MOVE = 0.1;         // re-render a map once the camera is this fraction of its half-size off centre
 
 export function createSunShadows(scene, camera, { sunDir, color, intensity, quality = 1 }) {
-  const near = [{ r: 40, size: 2048 }, { r: 300, size: 4096 }];
+  const near = [{ r: 40, size: 2048 }, { r: 380, size: 4096 }];
   const limit = near.map(c => c.r * (1 - MOVE) / CORNER);          // view depth each camera-centred map is good for
   const csm = new CSM({
     camera, parent: scene, cascades: near.length + 1, maxFar: camera.far, mode: 'custom',
@@ -71,6 +71,8 @@ export function createSunShadows(scene, camera, { sunDir, color, intensity, qual
         for (const m of [].concat(o.material ?? [])) if (m.isMeshStandardMaterial && !m.defines?.USE_CSM) csm.setupMaterial(m);
       });
     },
+    // Re-render every map (call when shadow-casting geometry is added, e.g. a loaded asset).
+    refresh() { for (const l of csm.lights) l.shadow.needsUpdate = true; },
     update(pos) {
       for (const c of near) {
         if (pos.distanceTo(c.centre) < c.r * MOVE) continue;

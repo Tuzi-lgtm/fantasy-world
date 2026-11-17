@@ -27,8 +27,8 @@ export async function loadAssets(scene, onLoad) {
       obj.scale.setScalar(e.scale ?? 1);
       obj.rotation.y = e.rotationY ?? 0;
       obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-      onLoad?.(obj);   // e.g. hook the asset's materials into the shadow rig
       scene.add(obj);
+      onLoad?.(obj);   // e.g. hook the asset into the shadow rig
     } catch (err) {
       console.warn(`Failed to load ${e.file}`, err);
     }

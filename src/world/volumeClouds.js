@@ -294,7 +294,7 @@ export class CloudPass extends Pass {
     });
     // Ambient occlusion from the scene depth (normals rebuilt from depth, so no extra geometry pass),
     // at the cloud buffer's resolution. The radius is ~2 m near the camera and grows with distance
-    // (20 buffer pixels, up to 45 m), so distant eaves and terraces still occlude.
+    // (3% of the frame width, up to 45 m), so distant eaves and terraces still occlude.
     const ao = this.ao = new GTAOPass(scene, camera, 4, 4);
     ao.setGBuffer(this.sceneRT.depthTexture, undefined);
     ao.output = GTAOPass.OUTPUT.Off;
@@ -302,6 +302,7 @@ export class CloudPass extends Pass {
     ao.updatePdMaterial({ radius: 12, rings: 2, samples: 16, lumaPhi: 10, depthPhi: 2, normalPhi: 3 });
     const swap = (src, a, b) => { if (!src.includes(a)) throw new Error('GTAO shader changed: ' + a); return src.split(a).join(b); };
     let fs = ao.gtaoMaterial.fragmentShader;
+    fs = swap(fs, 'float(SCREEN_SPACE_RADIUS_SCALE) / resolution.x', '0.143');   // radius as a fraction of the frame, whatever the resolution
     fs = swap(fs, 'radiusToUse *= radiusScale;', 'radiusToUse = clamp(radius * radiusScale, 1.8, 45.0);');
     fs = swap(fs, 'distanceFalloffToUse *= radiusScale;', 'distanceFalloffToUse = thickness * radiusToUse;');
     fs = swap(fs, 'abs(viewDelta.z) < thickness', 'abs(viewDelta.z) < distanceFalloffToUse');

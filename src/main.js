@@ -74,7 +74,7 @@ scene.add(realm);
 // Sun shadows across the whole realm (?shadows=low halves the map sizes).
 const shadows = createSunShadows(scene, camera, { sunDir, ...SUN, quality: new URLSearchParams(location.search).get('shadows') === 'low' ? 0.5 : 1 });
 shadows.setup(scene);
-loadAssets(scene, obj => shadows.setup(obj));
+loadAssets(scene, obj => { shadows.setup(obj); shadows.refresh(); });
 
 // ---------- Post ----------
 const composer = new EffectComposer(renderer);
