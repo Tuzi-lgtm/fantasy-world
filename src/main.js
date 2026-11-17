@@ -31,12 +31,13 @@ const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.5, 14
 camera.position.set(...HERO.pos);
 camera.lookAt(...HERO.look);
 
-// ---------- Sky & light: high sun ahead and to the right (facades in blue shade, rim-lit cloud) ----------
+// ---------- Sky & light: warm sun from the upper right, raking slightly toward the camera ----------
+// (measured off the reference: shadows fall to the left and a little toward the viewer, about as long as the figure)
 const sky = new Sky();
 sky.scale.setScalar(16000);
 const su = sky.material.uniforms;
 su.turbidity.value = 2.2; su.rayleigh.value = 3; su.mieCoefficient.value = 0.002; su.mieDirectionalG.value = 0.8;
-const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(41), THREE.MathUtils.degToRad(123));
+const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(48), THREE.MathUtils.degToRad(108));
 su.sunPosition.value.copy(sunDir);
 
 // Visible sky: a simple gradient dome (clear blue overhead, haze at the horizon).
@@ -58,7 +59,7 @@ const skyScene = new THREE.Scene(); skyScene.add(sky.clone());
 scene.environment = pmrem.fromScene(skyScene).texture;
 scene.environmentIntensity = 0.2;
 
-const sun = new THREE.DirectionalLight('#fff1dc', 3.6);
+const sun = new THREE.DirectionalLight('#ffe2bb', 3.9);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
 Object.assign(sun.shadow.camera, { left: -320, right: 320, top: 320, bottom: -320, near: 1, far: 2600 });
@@ -66,7 +67,7 @@ sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.15;
 scene.add(sun, sun.target);
 // Sky fill from above, bright bounce off the cloud sea from below (lights soffits and shaded facades).
-scene.add(new THREE.HemisphereLight('#a9c8ff', '#e9e4da', 0.7));
+scene.add(new THREE.HemisphereLight('#a9c8ff', '#efe3d2', 0.7));
 
 // ---------- World ----------
 // Volumetric clouds by default; ?clouds=mesh keeps the old opaque mesh clouds.
