@@ -24,7 +24,7 @@ export const CAUSEWAY = { zEnd: -1280 };
 
 // Dragon pillars: the first slots for hand-made hero assets.
 export const PILLARS = [{ x: -183, z: -441 }, { x: 186, z: -441 }].map(p => ({
-  ...p, base: -160, top: 150, r: 37, pavilion: { w: 78, floors: 3, colH: 31 },
+  ...p, base: -160, top: 150, r: 31, pavilion: { w: 78, floors: 3, colH: 31 },
 }));
 
 // Palace depth layers, numbered as in the annotated reference (1 nearest):
@@ -34,16 +34,16 @@ export const PILLARS = [{ x: -183, z: -441 }, { x: 186, z: -441 }].map(p => ({
 export const LEVELS = [
   { layer: 2, top: DECK, z0: -1322, z1: -1280, hw: 112 },
   { layer: 4, top: 78, z0: -1480, z1: -1352, hw: 245 },
-  { layer: 5, top: 111, z0: -1665, z1: -1524, hw: 262 },
-  { layer: 6, top: 195, z0: -1890, z1: -1775, hw: 256 },
+  { layer: 5, top: 111, z0: -1655, z1: -1524, hw: 262 },
+  { layer: 6, top: 195, z0: -1890, z1: -1765, hw: 256 },
 ];
 // kind: hall (grandHall) | block (tieredBlock). Sizes are body sizes; eaves add `over`.
 export const HALLS = [
   { level: 0, kind: 'hall', x: 0, z: -1300, w: 200, d: 18, colH: 10, bays: 11, over: 5, roofH: 6, plinth: 0.6, apron: 2, passage: 21, plaque: false },
-  { level: 1, kind: 'hall', x: 0, z: -1420, w: 190, d: 70, colH: 35, bays: 9, over: 12, roofH: 25, R: 58, plinth: 3, band: 10, passage: 21.1 },
-  ...[-1, 1].map(s => ({ level: 1, kind: 'hall', x: s * 168, z: -1440, w: 96, d: 44, colH: 30, bays: 5, over: 11, roofH: 14, plinth: 3, band: 9 })),
+  { level: 1, kind: 'hall', x: 0, z: -1420, w: 190, d: 70, colH: 37.4, bays: 9, over: 12, roofH: 25, R: 58, plinth: 0.6, apron: 5, band: 10, passage: 21.1 },
+  ...[-1, 1].map(s => ({ level: 1, kind: 'hall', x: s * 168, z: -1440, w: 96, d: 44, colH: 30, bays: 5, over: 11, roofH: 14, plinth: 3, apron: 5, band: 9 })),
   { level: 2, kind: 'block', x: 0, z: -1597, w: 424, d: 90, floors: 4, pitch: 23.7, over: 12, topH: 14 },
-  { level: 3, kind: 'hall', x: 0, z: -1830, w: 437, d: 84, colH: 32, bays: 13, over: 14, plinth: 4, band: 9.6, lift: 19, main: true,
+  { level: 3, kind: 'hall', x: 0, z: -1830, w: 437, d: 84, colH: 35.2, bays: 13, over: 14, plinth: 0.8, apron: 5, band: 9.6, lift: 19, main: true,
     skirt: { R: 69, t1: 0.45, H: 54 }, upper: { wall: 16, over: 11, R: 70, H: 50, lift: 12 } },
 ];
 export const PALACE_STAIRS = LEVELS.slice(1).map((L, i) => ({
@@ -55,11 +55,12 @@ export const PEDESTAL_TOWERS = [
 ];
 // Layers 2-5: pavilions and pagodas on rock spires (top = rock height, apex = roof top).
 export const FLANK_TOWERS = [
-  { layer: 2, x: -295, z: -1221, top: 53, apex: 111, w: 40, floors: 3 },
-  { layer: 2, x: 329, z: -1221, top: 44, apex: 105, w: 62, floors: 3 },
+  { layer: 2, x: -295, z: -1221, top: 53, apex: 111, w: 44, floors: 2 },
+  { layer: 2, x: 329, z: -1221, top: 44, apex: 105, w: 62, floors: 2 },
   { layer: 3, x: -286, z: -1371, top: 78, apex: 127, w: 44, floors: 3 },
-  { layer: 3, x: 310, z: -1371, top: 95, apex: 127, w: 47, floors: 2 },
-  { layer: 3, x: -225, z: -1318, top: 86, apex: 119, w: 26, floors: 2 },
+  { layer: 3, x: -225, z: -1318, top: 86, apex: 119, w: 26, floors: 3 },
+  { layer: 3, x: 310, z: -1371, top: 95, apex: 127, w: 47, floors: 3 },
+  { layer: 3, x: 207, z: -1321, top: 94, apex: 121, w: 24, floors: 3 },
   { layer: 5, x: -190, z: -1553, top: 111, apex: 187, w: 40, floors: 3, onLevel: true },
   { layer: 5, x: 190, z: -1553, top: 111, apex: 187, w: 40, floors: 3, onLevel: true },
 ];

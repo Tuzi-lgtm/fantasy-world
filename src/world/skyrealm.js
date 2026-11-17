@@ -118,21 +118,21 @@ function dragonPillar(kit, p) {
   const h = p.top - p.base, r = p.r, mir = p.x < 0 ? 1 : -1;
   kit.add('paint', paint(new THREE.CylinderGeometry(r * 0.97, r, h, 40, 1).translate(p.x, p.base + h / 2, p.z), '#cdc8bb'));
   const drum = (rr, hh, y, col) => kit.add('paint', paint(new THREE.CylinderGeometry(rr, rr, hh, 40).translate(p.x, y, p.z), col));
-  drum(r * 1.07, 3, p.top - 9.5, COL.marbleDark); drum(r * 1.13, 3, p.top - 6.5, COL.marble); drum(r * 1.2, 2, p.top - 4, COL.marbleDark);
-  drum(r * 1.12, 3, p.top - 1.5, COL.marble);
+  drum(r * 1.14, 3, p.top - 9.5, COL.marbleDark); drum(r * 1.22, 3, p.top - 6.5, COL.marble); drum(r * 1.3, 2, p.top - 4, COL.marbleDark);
+  drum(r * 1.26, 3, p.top - 1.5, COL.marble);
   for (let i = 0; i < 150; i++) {   // cloud scrolls in relief
-    const a = rand(0, 6.283), y = rand(10, p.top - 14), s = rand(5, 13);
+    const a = rand(0, 6.283), y = rand(10, p.top - 14), s = rand(4, 10);
     kit.add('paint', paint(new THREE.IcosahedronGeometry(s, 1).scale(0.55, rand(0.5, 0.9), 1).rotateY(-a)
       .translate(p.x + Math.cos(a) * r * 0.99, y, p.z + Math.sin(a) * r * 0.99), CARVED));
   }
 
   // dragon body: climbs out of the cloud in tight coils; the neck swings out below the capital
-  const y0 = 18, y1 = p.top - 14, turns = 3.7, rb = r * 0.29, N = 240, pts = [];
+  const y0 = 18, y1 = p.top - 14, turns = 3.7, rb = r * 0.27, N = 240, pts = [];
   const aHead = Math.PI / 2 - mir * 0.7;
   for (let i = 0; i <= N; i++) {
     const t = i / N, a = aHead + mir * (turns * Math.PI * 2 * Math.pow(1 - t, 1.35) + 0.45 * Math.sin(t * 13));
     const y = y0 + (y1 - y0) * Math.pow(Math.min(t / 0.84, 1), 0.9) - 20 * smooth(t, 0.84, 1) + Math.sin(t * 17) * 4.5 + Math.sin(t * 41 + 1) * 2;
-    const R = r + rb * (0.55 + 0.25 * Math.sin(t * 29)) + 28 * Math.pow(smooth(t, 0.84, 1), 1.4);
+    const R = r + rb * (0.2 + 0.2 * Math.sin(t * 29)) + 28 * Math.pow(smooth(t, 0.84, 1), 1.4);
     pts.push(V(p.x + Math.cos(a) * R, y, p.z + Math.sin(a) * R));
   }
   const curve = new THREE.CatmullRomCurve3(pts), len = curve.getLength();
@@ -169,7 +169,7 @@ function dragonPillar(kit, p) {
   const m = new THREE.Matrix4().lookAt(fw, V(0, 0, 0), UP).setPosition(end);
   for (const g of parts) kit.add('paint', paint(g.applyMatrix4(m), CARVED));
 
-  tower(kit, { x: p.x, y: p.top, z: p.z, ...p.pavilion, corbel: r * 2.1 });
+  tower(kit, { x: p.x, y: p.top, z: p.z, ...p.pavilion, corbel: r * 2.5 });
 }
 
 // Scrolling waterfall texture: bright streaks, alpha fading to nothing at the sides.
@@ -350,7 +350,7 @@ export function createSkyRealm({ meshClouds = false } = {}) {
     if (h.main) setColliderTop('mainHall', y + ht);
   }
   PALACE_STAIRS.forEach(s => stairs(kit, s));
-  rocks.push(rock(0, -1722, -160, 136, 44, 34, { moss: 0.9 }));   // carries the long stair to the top hall
+  rocks.push(rock(0, -1712, -160, 136, 44, 34, { moss: 0.9 }));   // carries the long stair to the top hall
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) lantern(kit, sx * 24, DECK, LEVELS[0].z1 - 8 + sz * 4, 2.4);
 
   // Layers 2-5: pavilions and pagodas on rock spires up both flanks
