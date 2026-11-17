@@ -238,17 +238,18 @@ export function tubeR(curve, segs, radial, rFn, uvRep = [1, 1]) {
 // Human-scale marble balustrade between two base points (any direction, may slope):
 // capped posts, two rails and a solid carved panel between them.
 // ---------------------------------------------------------------------------
-export function rail(kit, a, b, { h = 1.6, sp = 2, color = COL.marble } = {}) {
+export function rail(kit, a, b, { h = 3, sp = 2.4, color = COL.marble } = {}) {
   const len = a.distanceTo(b); if (len < 0.5) return;
   const n = Math.max(1, Math.round(len / sp));
-  for (let i = 0; i <= n; i++) {   // slim posts, closely spaced: the human-scale cue along every edge
+  for (let i = 0; i <= n; i++) {   // tall capped posts, closely spaced, along every edge (proportions from the reference)
     const p = a.clone().lerp(b, i / n);
-    kit.box(0.32, h, 0.32, p.x, p.y + h / 2, p.z, color);
-    kit.box(0.42, 0.08, 0.42, p.x, p.y + h + 0.04, p.z, color);
-    kit.add('paint', paint(new THREE.OctahedronGeometry(0.22, 1).scale(1, 1.4, 1).translate(p.x, p.y + h + 0.36, p.z), color));
+    kit.box(0.5, h, 0.5, p.x, p.y + h / 2, p.z, color);
+    kit.box(0.66, 0.12, 0.66, p.x, p.y + h + 0.06, p.z, color);
+    kit.add('paint', paint(new THREE.OctahedronGeometry(0.36, 1).scale(1, 1.5, 1).translate(p.x, p.y + h + 0.62, p.z), color));
   }
+  // top rail well above eye level, carved panel below it: the view stays open between them
   const m = new THREE.Matrix4().lookAt(a, b, UP), mid = a.clone().lerp(b, 0.5);
-  for (const [w, t, yy] of [[0.24, 0.16, h * 0.88], [0.1, h * 0.62, h * 0.47], [0.24, 0.16, h * 0.1]])
+  for (const [w, t, yy] of [[0.32, 0.22, h * 0.9], [0.12, h * 0.38, h * 0.27], [0.32, 0.18, h * 0.06]])
     kit.add('paint', paint(new THREE.BoxGeometry(w, t, len).applyMatrix4(m.clone().setPosition(mid.x, mid.y + yy, mid.z)), color));
 }
 
